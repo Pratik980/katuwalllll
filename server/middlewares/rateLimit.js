@@ -37,17 +37,24 @@ export const rateLimit = (options = {}) => {
     windowMs = 15 * 60 * 1000, // 15 minutes
     max = 3000, // ⭐ Increased for development
     message = 'Too many requests, please try again later.',
+    skipInDevelopment = true,
+    keyGenerator = (req) => req.ip || req.connection.remoteAddress,
   } = options;
 
   return (req, res, next) => {
-    // ⭐ Skip rate limiting in development
-    if (process.env.NODE_ENV === 'development') {
+    if (skipInDevelopment && process.env.NODE_ENV === 'development') {
       return next();
     }
 
-    const ip = req.ip || req.connection.remoteAddress;
+    const ip = keyGenerator(req);
     const now = Date.now();
     const windowStart = now - windowMs;
+
+    for (const [key, timestamps] of requests.entries()) {
+      if (!timestamps.length || timestamps[timestamps.length - 1] <= windowStart) {
+        requests.delete(key);
+      }
+    }
 
     if (!requests.has(ip)) {
       requests.set(ip, []);

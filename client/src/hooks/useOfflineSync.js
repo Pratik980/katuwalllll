@@ -6,19 +6,17 @@ const STORAGE_KEY = 'offline_data';
 
 export const useOfflineSync = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [pendingActions, setPendingActions] = useState([]);
-
-  // Load pending actions from localStorage
-  useEffect(() => {
+  const [pendingActions, setPendingActions] = useState(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        setPendingActions(JSON.parse(stored));
-      } catch (error) {
-        console.error('Failed to load offline data:', error);
-      }
+    if (!stored) return [];
+
+    try {
+      return JSON.parse(stored);
+    } catch (error) {
+      console.error('Failed to load offline data:', error);
+      return [];
     }
-  }, []);
+  });
 
   // Save pending actions to localStorage
   const savePendingActions = useCallback((actions) => {

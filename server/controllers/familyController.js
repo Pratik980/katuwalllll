@@ -1269,25 +1269,63 @@ import Member from '../models/Member.js';
 import { io } from '../server.js';
 import cloudinary from '../config/cloudinary.js';
 import Notification from '../models/Notification.js';
+import { buildLineageTree as buildFamilyTreeData } from '../utils/buildLineageTree.js';
+import { authorizedFamilyIds } from '../middlewares/authentication.js';
+
+const escapeSearchTerm = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const deleteFamilyPhoto = async (photoUrl) => {
+  if (!photoUrl) return;
+  const parsedUrl = new URL(photoUrl);
+  if (parsedUrl.hostname !== 'res.cloudinary.com') {
+    throw new Error('Cannot remove a family photo that is not stored in Cloudinary.');
+  }
+
+  const pathSegments = parsedUrl.pathname.split('/').filter(Boolean);
+  const uploadIndex = pathSegments.indexOf('upload');
+  if (uploadIndex < 0) {
+    throw new Error('The stored family photo URL is invalid.');
+  }
+  const assetSegments = pathSegments.slice(uploadIndex + 1);
+  const versionIndex = assetSegments.findIndex((segment) => /^v\d+$/.test(segment));
+  const publicId = (versionIndex >= 0 ? assetSegments.slice(versionIndex + 1) : assetSegments)
+    .slice(-2)
+    .join('/')
+    .replace(/\.[^.]+$/, '');
+  if (!publicId) throw new Error('The stored family photo URL is invalid.');
+
+  const result = await cloudinary.uploader.destroy(publicId);
+  if (!['ok', 'not found'].includes(result.result)) {
+    throw new Error(`Cloudinary did not remove family photo ${publicId}.`);
+  }
+};
 
 export const getFamilies = async (req, res) => {
   try {
     const { page = 1, limit = 10, search, house } = req.query;
     const skip = (page - 1) * limit;
 
+    if (search !== undefined && (typeof search !== 'string' || search.length > 100)) {
+      return res.status(400).json({ message: 'Search query must be a string of at most 100 characters.' });
+    }
+    const searchTerm = search ? escapeSearchTerm(search.trim()) : '';
     let query = {};
-    if (search) {
+    if (searchTerm) {
       query = {
         $or: [
-          { familyName: { $regex: search, $options: 'i' } },
-          { familyNumber: { $regex: search, $options: 'i' } },
-          { clan: { $regex: search, $options: 'i' } },
-          { vanshaGenerationNumber: { $regex: search, $options: 'i' } },
+          { familyName: { $regex: searchTerm, $options: 'i' } },
+          { familyNumber: { $regex: searchTerm, $options: 'i' } },
+          { clan: { $regex: searchTerm, $options: 'i' } },
+          { vanshaGenerationNumber: { $regex: searchTerm, $options: 'i' } },
         ],
       };
     }
     if (house) {
       query.house = house;
+    }
+    const visibleFamilyIds = await authorizedFamilyIds(req.user);
+    if (visibleFamilyIds !== null) {
+      query._id = { $in: visibleFamilyIds };
     }
 
     const [families, total] = await Promise.all([
@@ -1368,58 +1406,39 @@ const buildLineageTree = (members, family) => {
       }
     }
 
-    // Father relationship
-    if (m.father) {
-      const fatherId =
-        typeof m.father === 'object' ? m.father._id?.toString() : m.father?.toString();
-      if (fatherId && memberMap[fatherId]) {
-        if (!memberMap[fatherId].children.includes(memberId)) {
-          memberMap[fatherId].children.push(memberId);
-        }
-        if (!member.parents.includes(fatherId)) {
-          member.parents.push(fatherId);
-        }
-        memberMap[fatherId].isLineageSource = true;
+    const getRelatedId = (relatedMember) =>
+      (relatedMember?._id ?? relatedMember)?.toString();
+    const parentIds = ['father', 'mother']
+      .map((field) => getRelatedId(m[field]))
+      .filter((id) => id && memberMap[id]);
+
+    parentIds.forEach((parentId) => {
+      if (!member.parents.includes(parentId)) {
+        member.parents.push(parentId);
+      }
+      memberMap[parentId].isLineageSource = true;
+    });
+
+    // Attach each child to one parent so two-parent records do not duplicate
+    // the same descendants under separate roots.
+    let lineageParentId = ['father', 'mother']
+      .map((field) => getRelatedId(m[field]))
+      .find((id) => id && memberMap[id]);
+
+    // Older records may only have a grandparent reference. Use it as a
+    // fallback edge rather than marking the member as a child but orphaning it.
+    if (!lineageParentId) {
+      lineageParentId = ['grandfather', 'grandmother']
+        .map((field) => getRelatedId(m[field]))
+        .find((id) => id && memberMap[id]);
+      if (lineageParentId) {
+        member.parents.push(lineageParentId);
+        memberMap[lineageParentId].isLineageSource = true;
       }
     }
 
-    // Mother relationship
-    if (m.mother) {
-      const motherId =
-        typeof m.mother === 'object' ? m.mother._id?.toString() : m.mother?.toString();
-      if (motherId && memberMap[motherId]) {
-        if (!memberMap[motherId].children.includes(memberId)) {
-          memberMap[motherId].children.push(memberId);
-        }
-        if (!member.parents.includes(motherId)) {
-          member.parents.push(motherId);
-        }
-        memberMap[motherId].isLineageSource = true;
-      }
-    }
-
-    // Grandfather relationship
-    if (m.grandfather) {
-      const grandId =
-        typeof m.grandfather === 'object' ? m.grandfather._id?.toString() : m.grandfather?.toString();
-      if (grandId && memberMap[grandId]) {
-        if (!member.parents.includes(grandId)) {
-          member.parents.push(grandId);
-        }
-        memberMap[grandId].isLineageSource = true;
-      }
-    }
-
-    // Grandmother relationship
-    if (m.grandmother) {
-      const grandId =
-        typeof m.grandmother === 'object' ? m.grandmother._id?.toString() : m.grandmother?.toString();
-      if (grandId && memberMap[grandId]) {
-        if (!member.parents.includes(grandId)) {
-          member.parents.push(grandId);
-        }
-        memberMap[grandId].isLineageSource = true;
-      }
+    if (lineageParentId && !memberMap[lineageParentId].children.includes(memberId)) {
+      memberMap[lineageParentId].children.push(memberId);
     }
   });
 
@@ -1534,53 +1553,36 @@ export const getFamilyTreeByFamily = async (req, res) => {
         message: 'Family not found',
       });
     }
+    const visibleFamilyIds = await authorizedFamilyIds(req.user);
+    if (visibleFamilyIds !== null && !visibleFamilyIds.includes(String(family._id))) {
+      return res.status(404).json({ message: 'Family not found' });
+    }
 
-    // Get all members in this family
-    const members = await Member.find({ family: familyId })
-      .populate({
-        path: 'father',
-        select:
-          'name photo memberNumber vanshaGenerationNumber generation gender isAlive'
-          // ❌ REMOVED: rollNumber
-      })
-      .populate({
-        path: 'mother',
-        select:
-          'name photo memberNumber vanshaGenerationNumber generation gender isAlive'
-          // ❌ REMOVED: rollNumber
-      })
-      .populate({
-        path: 'spouse',
-        select:
-          'name photo memberNumber vanshaGenerationNumber generation gender isAlive'
-          // ❌ REMOVED: rollNumber
-      })
-      .populate({
-        path: 'grandfather',
-        select:
-          'name photo memberNumber vanshaGenerationNumber generation gender isAlive'
-          // ❌ REMOVED: rollNumber
-      })
-      .populate({
-        path: 'grandmother',
-        select:
-          'name photo memberNumber vanshaGenerationNumber generation gender isAlive'
-          // ❌ REMOVED: rollNumber
-      })
-      .populate({
-        path: 'guardian',
-        select:
-          'name photo memberNumber vanshaGenerationNumber generation gender isAlive'
-          // ❌ REMOVED: rollNumber
-      })
+    const treeMemberFields = 'name surname photo memberNumber family gender dob isAlive generation relationship vanshaGenerationNumber lineageRole childBirthOrder father mother spouse husband wife grandfather grandmother';
+    const familyMembers = await Member.find({ family: familyId })
+      .select(treeMemberFields)
+      .populate('family', 'familyName familyNumber')
       .lean();
 
-    // Build lineage-based tree
-    const treeData = buildLineageTree(members, family);
+    const familyMemberIds = new Set(familyMembers.map((member) => String(member._id)));
+    const spouseIds = [...new Set(
+      familyMembers.flatMap((member) => [member.spouse, member.husband, member.wife])
+        .map((reference) => String(reference?._id ?? reference ?? ''))
+        .filter((id) => id && !familyMemberIds.has(id))
+    )];
+    const linkedSpouses = spouseIds.length
+      ? await Member.find({ _id: { $in: spouseIds } })
+        .select(treeMemberFields)
+        .populate('family', 'familyName familyNumber')
+        .lean()
+      : [];
+    const members = [...familyMembers, ...linkedSpouses];
+
+    const treeData = buildFamilyTreeData(members);
 
     res.status(200).json({
       success: true,
-      count: members.length,
+      count: familyMembers.length,
       data: treeData,
       family: {
         id: family._id,
@@ -1602,6 +1604,10 @@ export const getFamilyTreeByFamily = async (req, res) => {
 // ⭐ UPDATED: getFamilyById - Removed rollNumber from select
 export const getFamilyById = async (req, res) => {
   try {
+    const visibleFamilyIds = await authorizedFamilyIds(req.user);
+    if (visibleFamilyIds !== null && !visibleFamilyIds.includes(String(req.params.id))) {
+      return res.status(404).json({ message: 'Family not found' });
+    }
     const family = await Family.findById(req.params.id)
       .populate('house', 'houseNumber houseName')
       .populate('familyHead', 'name photo memberNumber phone email')
@@ -1707,8 +1713,8 @@ export const createFamily = async (req, res) => {
     });
     await notification.save();
 
-    io.emit('family:created', family);
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('family:created', family);
+    io.to('role:admin').emit('notification:new', notification);
 
     res.status(201).json(family);
   } catch (error) {
@@ -1736,6 +1742,7 @@ export const updateFamily = async (req, res) => {
     }
 
     const updateData = { ...req.body };
+    delete updateData.removeFamilyPhoto;
 
     // Handle house update by houseNumber
     if (updateData.houseNumber) {
@@ -1760,19 +1767,26 @@ export const updateFamily = async (req, res) => {
       delete updateData.houseName;
     }
 
-    if (req.file && family.familyPhoto) {
-      const publicId = family.familyPhoto.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(publicId).catch(() => {});
-    }
+    const removeFamilyPhoto = req.body.removeFamilyPhoto === true
+      || req.body.removeFamilyPhoto === 'true';
+    const previousPhoto = family.familyPhoto;
 
     const updatedFamily = await Family.findByIdAndUpdate(
       req.params.id,
       {
         ...updateData,
-        familyPhoto: req.file?.path || family.familyPhoto,
+        familyPhoto: req.file?.path || (removeFamilyPhoto ? null : family.familyPhoto),
       },
       { new: true, runValidators: true }
     );
+
+    if (previousPhoto && (req.file || removeFamilyPhoto)) {
+      try {
+        await deleteFamilyPhoto(previousPhoto);
+      } catch (error) {
+        console.error('Failed to remove replaced family photo:', error);
+      }
+    }
 
     const notification = new Notification({
       type: 'family_updated',
@@ -1783,8 +1797,8 @@ export const updateFamily = async (req, res) => {
     });
     await notification.save();
 
-    io.emit('family:updated', updatedFamily);
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('family:updated', updatedFamily);
+    io.to('role:admin').emit('notification:new', notification);
 
     res.json(updatedFamily);
   } catch (error) {
@@ -1811,8 +1825,11 @@ export const deleteFamily = async (req, res) => {
     }
 
     if (family.familyPhoto) {
-      const publicId = family.familyPhoto.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(publicId).catch(() => {});
+      try {
+        await deleteFamilyPhoto(family.familyPhoto);
+      } catch (error) {
+        console.error('Failed to remove deleted family photo:', error);
+      }
     }
 
     // Update house family count
@@ -1824,7 +1841,7 @@ export const deleteFamily = async (req, res) => {
 
     await family.deleteOne();
 
-    io.emit('family:deleted', { id: req.params.id });
+    io.to('role:admin').emit('family:deleted', { id: req.params.id });
 
     res.json({ message: 'Family deleted successfully' });
   } catch (error) {
@@ -1862,8 +1879,8 @@ export const closeFamily = async (req, res) => {
     });
     await notification.save();
 
-    io.emit('family:closed', family);
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('family:closed', family);
+    io.to('role:admin').emit('notification:new', notification);
 
     res.json({
       message: 'Family closed successfully',
@@ -1902,8 +1919,8 @@ export const reopenFamily = async (req, res) => {
     });
     await notification.save();
 
-    io.emit('family:reopened', family);
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('family:reopened', family);
+    io.to('role:admin').emit('notification:new', notification);
 
     res.json({
       message: 'Family reopened successfully',
@@ -1924,9 +1941,12 @@ export const getNextFamilyNumber = async (req, res) => {
       return res.status(404).json({ message: 'House not found' });
     }
 
-    const lastFamily = await Family.findOne({ house: houseId }).sort({ familyNumber: -1 });
-
-    const nextNumber = lastFamily ? parseInt(lastFamily.familyNumber, 10) + 1 : 1;
+    const families = await Family.find({ house: houseId }).select('familyNumber').lean();
+    const maxFamilyNumber = families.reduce(
+      (max, family) => Math.max(max, Number.parseInt(family.familyNumber, 10) || 0),
+      0
+    );
+    const nextNumber = maxFamilyNumber + 1;
 
     res.json({
       houseId,
@@ -1942,6 +1962,10 @@ export const getNextFamilyNumber = async (req, res) => {
 export const getNextVanshaNumber = async (req, res) => {
   try {
     const { familyId } = req.params;
+    const visibleFamilyIds = await authorizedFamilyIds(req.user);
+    if (visibleFamilyIds !== null && !visibleFamilyIds.includes(String(familyId))) {
+      return res.status(404).json({ message: 'Family not found' });
+    }
 
     const members = await Member.find({ family: familyId })
       .select('vanshaGenerationNumber')
@@ -1972,9 +1996,13 @@ export const getNextVanshaNumber = async (req, res) => {
 
 export const getFamilyStats = async (req, res) => {
   try {
+    const visibleFamilyIds = await authorizedFamilyIds(req.user);
+    const familyFilter = visibleFamilyIds === null ? {} : { _id: { $in: visibleFamilyIds } };
+    const memberFilter = visibleFamilyIds === null ? {} : { family: { $in: visibleFamilyIds } };
     const [totalFamilies, memberStats] = await Promise.all([
-      Family.countDocuments(),
+      Family.countDocuments(familyFilter),
       Member.aggregate([
+        { $match: memberFilter },
         {
           $group: {
             _id: '$family',
@@ -2011,6 +2039,10 @@ export const getFamilyBanshaNumbers = async (req, res) => {
         message: 'Family ID is required',
       });
     }
+    const visibleFamilyIds = await authorizedFamilyIds(req.user);
+    if (visibleFamilyIds !== null && !visibleFamilyIds.includes(String(familyId))) {
+      return res.status(404).json({ message: 'Family not found' });
+    }
 
     const family = await Family.findById(familyId);
     if (!family) {
@@ -2024,21 +2056,19 @@ export const getFamilyBanshaNumbers = async (req, res) => {
       .select('vanshaGenerationNumber')
       .lean();
 
-    // Get unique Bansha Numbers
-    const banshaNumbers = [...new Set(
-      members
-        .map(m => m.vanshaGenerationNumber)
-        .filter(num => num && num.trim() !== '')
-    )].sort((a, b) => {
+    const banshaNumbers = members
+      .map((member) => member.vanshaGenerationNumber?.trim())
+      .filter(Boolean)
+      .sort((a, b) => {
       // Try numeric sort first
       const numA = parseInt(a, 10);
       const numB = parseInt(b, 10);
       if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB;
+        return numA - numB || a.localeCompare(b);
       }
       // Fallback to string sort
       return a.localeCompare(b);
-    });
+      });
 
     res.json({
       success: true,

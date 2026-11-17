@@ -3121,6 +3121,13 @@ const memberSchema = new mongoose.Schema({
   wifeDob: {
     type: Date,
   },
+  husbandName: {
+    type: String,
+    trim: true,
+  },
+  husbandDob: {
+    type: Date,
+  },
   
   // Address
   currentAddress: {
@@ -3475,7 +3482,14 @@ memberSchema.virtual('fullName').get(function() {
 
 memberSchema.virtual('age').get(function() {
   if (!this.dob) return null;
-  const age = new Date().getFullYear() - this.dob.getFullYear();
+  const today = new Date();
+  let age = today.getFullYear() - this.dob.getFullYear();
+  if (
+    today.getMonth() < this.dob.getMonth() ||
+    (today.getMonth() === this.dob.getMonth() && today.getDate() < this.dob.getDate())
+  ) {
+    age -= 1;
+  }
   return age;
 });
 

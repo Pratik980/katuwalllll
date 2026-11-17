@@ -28,7 +28,7 @@ export const createOrganization = async (req, res) => {
     });
 
     await organization.save();
-    io.emit('organization:updated', organization);
+    io.to('role:admin').emit('organization:updated', organization);
     res.status(201).json(organization);
   } catch (error) {
     if (error.code === 11000) {
@@ -61,7 +61,7 @@ export const updateOrganization = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    io.emit('organization:updated', updatedOrg);
+    io.to('role:admin').emit('organization:updated', updatedOrg);
     res.json(updatedOrg);
   } catch (error) {
     if (error.code === 11000) {
@@ -85,7 +85,7 @@ export const deleteOrganization = async (req, res) => {
     }
 
     await Organization.deleteOne({ _id: organization._id });
-    io.emit('organization:deleted', { id: organization._id });
+    io.to('role:admin').emit('organization:deleted', { id: organization._id });
     res.json({ message: 'Organization deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -112,7 +112,7 @@ export const uploadOrganizationLogo = async (req, res) => {
     organization.logo = req.file.path;
     await organization.save();
 
-    io.emit('organization:updated', organization);
+    io.to('role:admin').emit('organization:updated', organization);
     res.json({ logo: req.file.path });
   } catch (error) {
     res.status(500).json({ message: error.message });

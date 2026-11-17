@@ -9275,6 +9275,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { createMember, updateMember, getMembers } from '../api/members';
 import { getFamilies, getFamilyBanshaNumbers } from '../api/families';
 import toast from 'react-hot-toast';
@@ -9305,6 +9306,7 @@ import { PiGenderIntersexBold } from 'react-icons/pi';
 
 const DataEntry = ({ member, onSuccess, onCancel }) => {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('personal');
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
@@ -9339,6 +9341,8 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
     // ⭐ NEW: Wife/Spouse fields
     wifeName: '',
     wifeDob: '',
+    husbandName: '',
+    husbandDob: '',
 
     phone: '',
     alternatePhone: '',
@@ -9434,6 +9438,22 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
     staleTime: 5 * 60 * 1000,
   });
 
+  useEffect(() => {
+    const requestedFamilyId = searchParams.get('family');
+    if (member || !requestedFamilyId || requestedFamilyId === selectedFamilyId) return;
+
+    const family = familiesData?.data?.find((item) => item._id === requestedFamilyId);
+    if (!family) return;
+
+    setSelectedFamilyId(requestedFamilyId);
+    setFormData((previous) => ({
+      ...previous,
+      family: requestedFamilyId,
+      familyNumber: family.familyNumber || '',
+      houseNumber: family.house?.houseNumber || '',
+    }));
+  }, [familiesData, member, searchParams, selectedFamilyId]);
+
   // Fetch members for dropdown
   const { data: membersData } = useQuery({
     queryKey: ['members-dropdown'],
@@ -9458,6 +9478,7 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
       queryClient.invalidateQueries({ queryKey: ['families'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['family-bansha'] });
+      queryClient.invalidateQueries({ queryKey: ['familyTree'] });
       onSuccess?.();
       resetForm();
     },
@@ -9475,6 +9496,7 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
       queryClient.invalidateQueries({ queryKey: ['families'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['family-bansha'] });
+      queryClient.invalidateQueries({ queryKey: ['familyTree'] });
       onSuccess?.();
     },
     onError: (error) => {
@@ -9550,6 +9572,11 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
           populatedData[key] = fieldsToPopulate[key];
         }
       });
+      relationFields.forEach((field) => {
+        if (member[field] && typeof member[field] === 'object') {
+          populatedData[field] = member[field]._id || '';
+        }
+      });
 
       setFormData(populatedData);
 
@@ -9566,13 +9593,21 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
   }, [member]);
 
   const resetForm = () => {
+    const requestedFamilyId = searchParams.get('family') || '';
+    const requestedFamily = familiesData?.data?.find((family) => family._id === requestedFamilyId);
     Object.values(photos).forEach(value => {
       if (typeof value === 'string' && value.startsWith('blob:')) {
         URL.revokeObjectURL(value);
       }
     });
 
-    setFormData(initialFormData);
+    setFormData({
+      ...initialFormData,
+      family: requestedFamilyId,
+      familyNumber: requestedFamily?.familyNumber || '',
+      houseNumber: requestedFamily?.house?.houseNumber || '',
+    });
+    setSelectedFamilyId(requestedFamilyId);
     setPhotos({
       photo: null,
       photoPreview: '',
@@ -9644,6 +9679,7 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
       setFormData(prev => ({
         ...prev,
         [name]: familyId,
+        ...(prev.family !== familyId ? { vanshaGenerationNumber: '' } : {}),
       }));
       
       if (familyId) {
@@ -9653,7 +9689,6 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
             ...prev,
             familyNumber: selectedFamily.familyNumber || '',
             houseNumber: selectedFamily.house?.houseNumber || '',
-            vanshaGenerationNumber: selectedFamily.vanshaGenerationNumber || '',
           }));
           toast.success(`परिवार चयन गरियो: ${selectedFamily.familyName}`);
         }
@@ -9671,15 +9706,21 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
       }
       return;
     }
+
+    if (name === 'spouse') {
+      setFormData((previous) => ({
+        ...previous,
+        spouse: value || '',
+        maritalStatus: value ? 'married' : previous.maritalStatus,
+      }));
+      return;
+    }
     
     // ⭐ NEW: Handle marital status change - show/hide wife fields
     if (name === 'maritalStatus') {
       setFormData((prev) => ({
         ...prev,
         [name]: value || '',
-        // Reset wife fields if not married
-        wifeName: value === 'married' ? prev.wifeName : '',
-        wifeDob: value === 'married' ? prev.wifeDob : '',
       }));
       return;
     }
@@ -9734,9 +9775,6 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
       errors.name = 'Full Name is required';
     }
     
-    if (!formData.surname?.trim()) {
-      errors.surname = 'Surname is required';
-    }
     
     if (!formData.gender) {
       errors.gender = 'Gender is required';
@@ -9767,18 +9805,21 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
     }
 
     setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
+    return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      const errorMessages = Object.values(validationErrors);
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      const errorMessages = Object.values(errors);
       errorMessages.forEach(msg => toast.error(msg));
-      if (validationErrors.name || validationErrors.surname || validationErrors.gender || validationErrors.dob || validationErrors.photo) {
+      if (errors.name || errors.surname || errors.gender || errors.dob || errors.photo) {
         setActiveTab('personal');
-      } else if (validationErrors.houseNumber || validationErrors.district || validationErrors.country || validationErrors.family) {
+      } else if (errors.family) {
+        setActiveTab('family');
+      } else if (errors.houseNumber || errors.district || errors.country) {
         setActiveTab('contact');
       }
       return;
@@ -9828,6 +9869,13 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
         }
       });
 
+      submitData.append(
+        'spouse',
+        typeof formData.spouse === 'object'
+          ? formData.spouse?._id || ''
+          : formData.spouse || ''
+      );
+
       Object.entries(documents).forEach(([key, file]) => {
         if (file && file instanceof File) {
           submitData.append(key, file);
@@ -9854,7 +9902,6 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
     if (activeTab === 'personal') {
       const personalErrors = {};
       if (!formData.name?.trim()) personalErrors.name = 'Full Name is required';
-      if (!formData.surname?.trim()) personalErrors.surname = 'Surname is required';
       if (!formData.gender) personalErrors.gender = 'Gender is required';
       if (!formData.dob) personalErrors.dob = 'Date of Birth is required';
       if (!member && !photos.photo && !photos.photoPreview) personalErrors.photo = 'Passport photo is required';
@@ -10052,27 +10099,27 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
             <div className="md:col-span-2 p-4 bg-pink-50 rounded-xl border border-pink-200">
               <h4 className="text-sm font-medium text-pink-700 mb-3 flex items-center gap-2">
                 <FaHeart className="text-pink-500" />
-                श्रीमतीको विवरण (Spouse Information)
+                {formData.gender === 'female' ? 'श्रीमानको विवरण (Husband Information)' : 'श्रीमतीको विवरण (Wife Information)'}
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FloatingInput
-                  label="श्रीमतीको नाम (Wife Name)"
-                  name="wifeName"
-                  value={formData.wifeName}
+                  label={formData.gender === 'female' ? 'श्रीमानको नाम (Husband Name)' : 'श्रीमतीको नाम (Wife Name)'}
+                  name={formData.gender === 'female' ? 'husbandName' : 'wifeName'}
+                  value={formData.gender === 'female' ? formData.husbandName : formData.wifeName}
                   onChange={handleChange}
-                  placeholder="श्रीमतीको पूरा नाम"
+                  placeholder={formData.gender === 'female' ? 'श्रीमानको पूरा नाम' : 'श्रीमतीको पूरा नाम'}
                   icon={FaUser}
                 />
                 <NepaliDatePickerComponent
-                  label="श्रीमतीको जन्म मिति (Wife DOB)"
-                  name="wifeDob"
-                  value={formData.wifeDob}
+                  label={formData.gender === 'female' ? 'श्रीमानको जन्म मिति (Husband DOB)' : 'श्रीमतीको जन्म मिति (Wife DOB)'}
+                  name={formData.gender === 'female' ? 'husbandDob' : 'wifeDob'}
+                  value={formData.gender === 'female' ? formData.husbandDob : formData.wifeDob}
                   onChange={handleSelectChange}
-                  placeholder="श्रीमतीको जन्म मिति"
+                  placeholder={formData.gender === 'female' ? 'श्रीमानको जन्म मिति' : 'श्रीमतीको जन्म मिति'}
                 />
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                💡 श्रीमतीको विवरण ट्रीमा मात्र देखाइनेछ, मेम्बर लिस्टमा देखाइने छैन।
+                जीवनसाथी पहिल्यै सदस्यको रूपमा दर्ता भएको भए Family tab मा जोड्नुहोस्। नाम/जन्ममिति मात्र भर्दा नयाँ सदस्य वा duplicate record बन्दैन।
               </p>
             </div>
           )}
@@ -10280,7 +10327,6 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
   const renderFamilyInfo = () => {
     const maleMembers = (membersData?.data || []).filter(m => m.gender === 'male');
     const femaleMembers = (membersData?.data || []).filter(m => m.gender === 'female');
-    const allMembers = membersData?.data || [];
 
     const familyOptions = (familiesData?.data || []).map(f => ({
       value: f._id,
@@ -10294,6 +10340,15 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
 
     const sonOptions = createMemberOptions(maleMembers);
     const daughterOptions = createMemberOptions(femaleMembers);
+    const spouseCandidates = formData.gender === 'female' ? maleMembers : femaleMembers;
+    const spouseOptions = createMemberOptions(spouseCandidates.filter((candidate) => {
+      if (String(candidate._id) === String(member?._id || '')) return false;
+      const currentMemberId = String(member?._id || '');
+      const partnerIds = [candidate.spouse, candidate.husband, candidate.wife]
+        .map((reference) => String(reference?._id ?? reference ?? ''))
+        .filter(Boolean);
+      return partnerIds.every((partnerId) => partnerId === currentMemberId);
+    }));
 
     // Get available bansha numbers from the API
     const banshaOptions = (banshaData?.data || []).map(num => ({
@@ -10465,7 +10520,7 @@ const DataEntry = ({ member, onSuccess, onCancel }) => {
             name="spouse"
             value={formData.spouse}
             onChange={handleSelectChange}
-            options={createMemberOptions(allMembers)}
+            options={spouseOptions}
             placeholder="श्रीमान/श्रीमती खोज्नुहोस्..."
           />
           

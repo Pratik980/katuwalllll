@@ -302,30 +302,45 @@ import {
   ChartBarSquareIcon,
   ArchiveBoxIcon,
   Cog6ToothIcon,
+  UserCircleIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import {
   GitBranch,
   UserPlus,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 
 const navigationItems = [
   { key: 'dashboard', href: "/", icon: Squares2X2Icon },
   { key: 'members', href: "/members", icon: UsersIcon },
-  { key: 'data_entry', href: "/data-entry", icon: UserPlus },
-  { key: 'donations', href: "/donations", icon: HeartIcon },
   { key: 'families', href: "/families", icon: GitBranch },
   { key: 'family_tree', href: "/family-tree", icon: GitBranch },
-  { key: 'documents', href: "/documents", icon: DocumentTextIcon },
   { key: 'chat', href: "/chat", icon: ChatBubbleLeftRightIcon },
-  { key: 'notifications', href: "/notifications", icon: BellIcon },
-  { key: 'reports', href: "/reports", icon: ChartBarSquareIcon },
-  { key: 'backups', href: "/backups", icon: ArchiveBoxIcon },
   { key: 'settings', href: "/settings", icon: Cog6ToothIcon },
 ];
 
 export default function Sidebar({ isOpen, toggle }) {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const roleItems = [
+    ...navigationItems,
+    ...(user?.role === 'admin' || user?.role === 'staff'
+      ? [{ key: 'data_entry', href: "/data-entry", icon: UserPlus }]
+      : []),
+    { key: 'reports', href: "/reports", icon: ChartBarSquareIcon },
+    ...(user?.role === 'admin' ? [
+      { key: 'documents', href: "/documents", icon: DocumentTextIcon },
+    ] : []),
+    ...(user?.role === 'admin' ? [
+      { key: 'donations', href: "/donations", icon: HeartIcon },
+      { key: 'notifications', href: "/notifications", icon: BellIcon },
+      { key: 'backups', href: "/backups", icon: ArchiveBoxIcon },
+      { key: 'admin_users', href: "/admin/users", icon: UserGroupIcon, label: 'User management' },
+    ] : []),
+    { key: 'profile', href: "/profile", icon: UserCircleIcon, label: 'Profile' },
+  ];
 
   return (
     <>
@@ -337,22 +352,21 @@ export default function Sidebar({ isOpen, toggle }) {
       )}
 
       <aside
-        className={`fixed top-0 left-0 z-50 h-screen w-72 bg-white border-r border-slate-200 shadow-xl transition-transform duration-300 ease-in-out
+        className={`sidebar-panel fixed top-0 left-0 z-50 h-screen w-72 border-r transition-transform duration-300 ease-in-out
         ${isOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6">
+          <div className="h-[4.5rem] border-b border-slate-100 flex items-center justify-between px-5">
             <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
-                <GitBranch className="h-6 w-6 text-white" />
+              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center shadow-md shadow-emerald-900/15">
+                <GitBranch className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-lg text-slate-800">
+                <h1 className="font-bold text-[15px] leading-tight tracking-tight text-slate-800">
                   {t('app_name')}
                 </h1>
-                <p className="text-xs text-slate-500">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   {t('management_system')}
                 </p>
               </div>
@@ -365,27 +379,27 @@ export default function Sidebar({ isOpen, toggle }) {
             </button>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto px-4 py-6">
-            <ul className="space-y-2">
-              {navigationItems.map((item) => {
+          <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 py-6">
+            <p className="page-eyebrow px-3 pb-3">Workspace</p>
+            <ul className="space-y-1">
+              {roleItems.map((item) => {
                 const Icon = item.icon;
-                const label = t(item.key);
+                const label = item.label || t(item.key);
                 return (
                   <li key={item.key}>
                     <NavLink
                       to={item.href}
                       end={item.href === "/"}
                       className={({ isActive }) =>
-                        `group flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-200
+                        `sidebar-link group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[13px] transition-all duration-200
                         ${
                           isActive
-                            ? "bg-gradient-to-r from-green-600 to-emerald-500 text-white shadow-lg"
-                            : "text-slate-700 hover:bg-slate-100 hover:text-green-600"
+                            ? "bg-emerald-50 font-semibold text-emerald-800 ring-1 ring-emerald-100"
+                            : "font-medium text-slate-600 hover:bg-slate-50 hover:text-emerald-800"
                         }`
                       }
                     >
-                      <Icon className="h-6 w-6 flex-shrink-0" />
+                      <Icon className="h-[18px] w-[18px] flex-shrink-0 opacity-85" />
                       <span className="font-medium">{label}</span>
                     </NavLink>
                   </li>
@@ -394,13 +408,16 @@ export default function Sidebar({ isOpen, toggle }) {
             </ul>
           </nav>
 
-          {/* Bottom Card */}
-          <div className="p-5 border-t border-slate-200">
-            <div className="rounded-2xl bg-gradient-to-r from-green-600 to-emerald-500 p-4 text-white shadow-lg">
-              <h3 className="font-semibold">{t('app_description_short')}</h3>
-              <p className="text-sm mt-1 text-green-100">{t('digital_genealogy')}</p>
+          <div className="p-4 border-t border-slate-100">
+            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4">
+              <div className="mb-2 flex items-center gap-2">
+                  <GitBranch className="h-3.5 w-3.5 text-emerald-700" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-800">Genealogy workspace</span>
+              </div>
+              <h3 className="text-xs font-semibold leading-relaxed text-slate-700">{t('app_description_short')}</h3>
+              <p className="mt-1 text-[11px] text-slate-500">{t('digital_genealogy')}</p>
             </div>
-            <p className="text-center text-xs text-slate-400 mt-5">
+            <p className="text-center text-[10px] text-slate-400 mt-4">
               © 2026 NDS Software
             </p>
           </div>

@@ -4,6 +4,14 @@ class SocketService {
   constructor() {
     this.socket = null;
     this.listeners = {};
+    this.authenticated = false;
+  }
+
+  setAuthenticated(authenticated) {
+    this.authenticated = authenticated;
+    if (!this.socket) return;
+    if (authenticated && !this.socket.connected) this.socket.connect();
+    if (!authenticated && this.socket.connected) this.socket.disconnect();
   }
 
   connect() {
@@ -12,6 +20,7 @@ class SocketService {
       this.socket = io(socketUrl, {
         transports: ['websocket', 'polling'],
         withCredentials: true,
+        autoConnect: false,
       });
       
       this.socket.on('connect', () => {
@@ -26,6 +35,7 @@ class SocketService {
         console.error('Socket connection error:', error);
       });
     }
+    if (this.authenticated && !this.socket.connected) this.socket.connect();
     return this.socket;
   }
 
@@ -77,15 +87,11 @@ class SocketService {
   }
 
   joinRoom(room) {
-    if (this.socket) {
-      this.socket.emit('join', { room });
-    }
+    this.joinChatRoom(room);
   }
 
   leaveRoom(room) {
-    if (this.socket) {
-      this.socket.emit('leave', { room });
-    }
+    this.leaveChatRoom(room);
   }
 
   joinChatRoom(room) {

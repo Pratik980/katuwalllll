@@ -424,8 +424,23 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
   const treeData = useMemo(() => {
     if (!members || members.length === 0) return null;
 
+    const flatMembers = [];
+    const visited = new Set();
+    const collectMembers = (nodes) => {
+      nodes.forEach((member) => {
+        const memberId = member?._id && String(member._id);
+        if (!memberId || visited.has(memberId)) return;
+        visited.add(memberId);
+        flatMembers.push(member);
+        const spouses = Array.isArray(member.spouses) ? member.spouses : [];
+        collectMembers(spouses.filter((spouse) => spouse && typeof spouse === 'object'));
+        collectMembers(Array.isArray(member.children) ? member.children : []);
+      });
+    };
+    collectMembers(members);
+
     const memberMap = {};
-    members.forEach(m => {
+    flatMembers.forEach(m => {
       memberMap[m._id] = { 
         ...m, 
         children: [], 
@@ -436,35 +451,38 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
     });
 
     // Build relationships
-    members.forEach(m => {
+    flatMembers.forEach(m => {
       const memberId = m._id;
       
-      if (m.father) {
-        const fatherId = typeof m.father === 'object' ? m.father._id : m.father;
-        if (fatherId && memberMap[fatherId]) {
-          if (!memberMap[fatherId].children.includes(memberId)) {
-            memberMap[fatherId].children.push(memberId);
-          }
-          if (!memberMap[memberId].parents.includes(fatherId)) {
-            memberMap[memberId].parents.push(fatherId);
-          }
+      const getRelatedId = (relatedMember) => relatedMember?._id ?? relatedMember;
+      const parentIds = ['father', 'mother']
+        .map((field) => getRelatedId(m[field]))
+        .filter((id) => id && memberMap[id]);
+
+      parentIds.forEach((parentId) => {
+        if (!memberMap[memberId].parents.includes(parentId)) {
+          memberMap[memberId].parents.push(parentId);
         }
-      }
-      
-      if (m.mother) {
-        const motherId = typeof m.mother === 'object' ? m.mother._id : m.mother;
-        if (motherId && memberMap[motherId]) {
-          if (!memberMap[motherId].children.includes(memberId)) {
-            memberMap[motherId].children.push(memberId);
-          }
-          if (!memberMap[memberId].parents.includes(motherId)) {
-            memberMap[memberId].parents.push(motherId);
-          }
+      });
+
+      const lineageParentId = ['father', 'mother', 'grandfather', 'grandmother']
+        .map((field) => getRelatedId(m[field]))
+        .find((id) => id && memberMap[id]);
+      if (lineageParentId && !memberMap[lineageParentId].children.includes(memberId)) {
+        memberMap[lineageParentId].children.push(memberId);
+        if (!memberMap[memberId].parents.includes(lineageParentId)) {
+          memberMap[memberId].parents.push(lineageParentId);
         }
       }
 
-      if (m.spouse) {
-        const spouseId = typeof m.spouse === 'object' ? m.spouse._id : m.spouse;
+      const spouseReferences = [
+        ...(Array.isArray(m.spouses) ? m.spouses : []),
+        m.spouse,
+        m.husband,
+        m.wife,
+      ].filter(Boolean);
+      spouseReferences.forEach((spouseReference) => {
+        const spouseId = spouseReference?._id ?? spouseReference;
         if (spouseId && memberMap[spouseId]) {
           if (!memberMap[memberId].spouses.includes(spouseId)) {
             memberMap[memberId].spouses.push(spouseId);
@@ -473,10 +491,24 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
             memberMap[spouseId].spouses.push(memberId);
           }
         }
-      }
+      });
     });
 
     let roots = Object.values(memberMap).filter(m => m.parents.length === 0);
+    roots = roots.filter((member) => {
+      if (member.children.length > 0) return true;
+      return !member.spouses.some((spouseId) => memberMap[spouseId]?.children.length > 0);
+    });
+    roots = roots.filter((member) =>
+      member.spouses.every((spouseId) => {
+        const spouse = memberMap[spouseId];
+        if (!spouse || !roots.includes(spouse)) return true;
+        if (member.children.length !== spouse.children.length) {
+          return member.children.length > spouse.children.length;
+        }
+        return String(member._id) < String(spouse._id);
+      })
+    );
     
     if (roots.length === 0) {
       const minGen = Math.min(...Object.values(memberMap).map(m => m.generation || 99));
@@ -487,7 +519,7 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
       roots = Object.values(memberMap);
     }
 
-    return { rootIds: roots.map(r => r._id), memberMap };
+    return { rootIds: roots.map(r => r._id), memberMap, memberCount: flatMembers.length };
   }, [members]);
 
   // Toggle node expansion
@@ -509,7 +541,8 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
     if (!member) return null;
 
     const isDeceased = !member.isAlive;
-    const hasPhoto = member.photo && member.photo.trim() !== '';
+    const hasChildren = member.children && member.children.length > 0;
+    const hasPhoto = typeof member.photo === 'string' && member.photo.trim() !== '';
     const genderIcon = member.gender === 'male' ? '👨' : member.gender === 'female' ? '👩' : '👤';
 
     return (
@@ -517,14 +550,14 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
         className={`
           bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 
           border-2 ${isDeceased ? 'border-gray-300' : isSpouse ? 'border-pink-300' : 'border-green-200'}
-          ${hasPhoto ? 'w-52' : 'w-48'}
+          w-40
           hover:border-green-400
           ${isSpouse ? 'bg-pink-50/80' : ''}
           cursor-pointer
         `}
         onClick={() => {
           setSelectedNode(member._id);
-          onMemberClick?.(member);
+          if (!member.isSyntheticSpouse) onMemberClick?.(member);
         }}
       >
         {/* Photo Section */}
@@ -533,19 +566,19 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
             <img 
               src={member.photo} 
               alt={member.name}
-              className="w-full h-36 object-cover rounded-t-xl"
+              className="w-full h-24 object-cover rounded-t-xl"
               onError={(e) => {
                 e.target.src = '/default-avatar.png';
               }}
             />
           ) : (
             <div className={`
-              w-full h-36 flex items-center justify-center rounded-t-xl
+              w-full h-24 flex items-center justify-center rounded-t-xl
               ${isDeceased ? 'bg-gray-200' : isSpouse ? 'bg-pink-100' : 'bg-gradient-to-br from-green-100 to-emerald-100'}
             `}>
               <div className="text-center">
-                <FaUser className={`text-5xl ${isDeceased ? 'text-gray-400' : 'text-green-400'} mx-auto`} />
-                <span className="text-xs text-gray-500 mt-1 block">फोटो छैन</span>
+                <FaUser className={`text-3xl ${isDeceased ? 'text-gray-400' : 'text-green-400'} mx-auto`} />
+                <span className="text-[10px] text-gray-500 mt-1 block">फोटो छैन</span>
               </div>
             </div>
           )}
@@ -571,7 +604,7 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
         </div>
         
         {/* Content Section */}
-        <div className="p-3 space-y-1">
+        <div className="p-2 space-y-1">
           <p className="font-semibold text-sm text-gray-800 truncate" title={member.name}>
             {member.name}
           </p>
@@ -588,9 +621,9 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
           )}
           
           {/* Family Number */}
-          {member.familyNumber && (
+          {(member.familyNumber || member.family?.familyNumber) && (
             <p className="text-[10px] text-gray-600">
-              परिवार नं: {member.familyNumber}
+              परिवार नं: {member.familyNumber || member.family.familyNumber}
             </p>
           )}
           
@@ -625,7 +658,7 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
         </div>
         
         {/* Expand/Collapse button for children */}
-        {member.children && member.children.length > 0 && (
+        {hasChildren && (
           <button
             onClick={(e) => toggleNode(member._id, e)}
             className="absolute -bottom-2.5 left-1/2 transform -translate-x-1/2 
@@ -653,49 +686,45 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
                            member.relationship ? getNepaliLabel(member.relationship) : 'सदस्य';
     
     // If this member is a spouse, override label
-    const isSpouse = member.spouses && member.spouses.length > 0 && 
-                     member.parents.length === 0 && 
-                     member.children.length === 0;
+    const isSpouse = member.lineageRole === 'spouse';
+    const spouseIds = member.spouses || [];
 
     return (
-      <div 
-        key={memberId} 
-        className={`flex ${isHorizontal ? 'flex-col items-center' : 'flex-row items-center'} relative`}
-      >
-        {/* Spouse connection */}
-        {hasSpouse && (
-          <div className={`${isHorizontal ? 'absolute -top-4 left-1/2' : 'absolute -left-4 top-1/2'} 
-            w-8 h-0.5 bg-pink-300 border-t-2 border-dashed border-pink-300`} />
-        )}
+      <div key={memberId} className="flex flex-col items-center relative">
+        <div className="flex items-center justify-center gap-2">
+          {renderMemberCard(member, relationshipLabel, isSpouse)}
+          {spouseIds.filter((id) => id !== memberId).map((spouseId) => {
+            const spouse = memberMap[spouseId];
+            if (!spouse) return null;
+            return (
+              <div key={spouseId} className="flex items-center gap-2">
+                <span className="text-[9px] text-pink-500">विवाह</span>
+                {renderMemberCard(spouse, spouse.gender === 'male' ? 'श्रीमान्' : 'श्रीमती', true)}
+              </div>
+            );
+          })}
+        </div>
 
-        {/* Main Member Card */}
-        {renderMemberCard(member, relationshipLabel, isSpouse)}
-
-        {/* Spouse side-by-side */}
-        {hasSpouse && isExpanded && (
-          <div className={`flex ${isHorizontal ? 'flex-row gap-2 mt-2' : 'flex-col gap-2 ml-2'}`}>
-            {member.spouses.map(spouseId => {
-              if (spouseId === memberId) return null;
-              const spouse = memberMap[spouseId];
-              if (!spouse) return null;
-              return renderMemberCard(spouse, 'श्रीमती', true);
-            })}
-          </div>
-        )}
-
-        {/* Children */}
         {hasChildren && isExpanded && (
-          <div className={`
-            flex flex-wrap justify-center gap-4 mt-4 pt-4 relative
-            ${isHorizontal ? 'flex-row' : 'flex-col'}
-          `}>
-            {/* Connecting line */}
-            <div className="absolute top-0 left-1/2 w-0.5 h-4 bg-green-300 -mt-4" />
-            
-            <div className="flex flex-wrap justify-center gap-4">
-              {member.children.map(childId => {
-                return renderFamilyNode(childId, memberMap, level + 1, isHorizontal);
-              })}
+          <div className={`relative mt-3 ${isHorizontal ? 'w-max' : 'w-full'}`}>
+            {isHorizontal && (
+              <div className="absolute -top-3 left-1/2 h-8 w-0.5 -translate-x-1/2 bg-green-300" />
+            )}
+            <div className={`flex ${isHorizontal ? 'items-start justify-center' : 'flex-col items-center'} gap-2`}>
+              {member.children.map((childId, index) => (
+                <div key={childId} className={`relative flex shrink-0 flex-col items-center ${isHorizontal ? 'px-2 pt-5' : 'pt-3'}`}>
+                  {isHorizontal && member.children.length > 1 && index > 0 && (
+                    <div className="absolute left-0 right-1/2 top-0 h-0.5 bg-green-300" />
+                  )}
+                  {isHorizontal && member.children.length > 1 && index < member.children.length - 1 && (
+                    <div className="absolute left-1/2 right-0 top-0 h-0.5 bg-green-300" />
+                  )}
+                  {isHorizontal && (
+                    <div className="absolute left-1/2 top-0 h-5 w-0.5 -translate-x-1/2 bg-green-300" />
+                  )}
+                  {renderFamilyNode(childId, memberMap, level + 1, isHorizontal)}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -742,7 +771,7 @@ const FamilyTreeView = ({ members, layout = 'horizontal', onMemberClick, familyI
     <div className="w-full overflow-auto">
       <div className="text-sm text-gray-500 mb-2 text-center">
         <span className="bg-gray-100 px-3 py-1 rounded-full">
-          कुल {members.length} सदस्यहरू
+          कुल {treeData?.memberCount ?? members.length} सदस्यहरू
         </span>
       </div>
       {renderTree()}

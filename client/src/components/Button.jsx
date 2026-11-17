@@ -52,14 +52,16 @@ const Button = ({
   onClick,
   ...props 
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-xl transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2';
   
   const variants = {
-    primary: 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-200 focus:ring-green-500',
-    secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-400',
-    outline: 'border-2 border-green-500 text-green-600 hover:bg-green-50 focus:ring-green-500',
-    danger: 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-200 focus:ring-red-500',
-    success: 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-200 focus:ring-emerald-500',
+    primary: 'bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 focus:ring-emerald-600',
+    secondary: 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-400',
+    outline: 'border border-emerald-700 bg-white text-emerald-800 hover:bg-emerald-50 focus:ring-emerald-600',
+    danger: 'bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus:ring-rose-500',
+    success: 'bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 focus:ring-emerald-600',
+    warning: 'bg-amber-500 text-white shadow-sm hover:bg-amber-600 focus:ring-amber-500',
+    ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-slate-400',
   };
 
   const sizes = {

@@ -139,9 +139,60 @@ import Family from '../models/Family.js';
 import Donation from '../models/Donation.js';
 import Document from '../models/Document.js';
 import Notification from '../models/Notification.js';
+import { authorizedFamilyIds } from '../middlewares/authentication.js';
 
 export const getDashboardStats = async (req, res) => {
   try {
+    if (req.user.role !== 'admin') {
+      const familyIds = await authorizedFamilyIds(req.user);
+      const memberFilter = familyIds === null ? {} : { family: { $in: familyIds } };
+      const familyFilter = familyIds === null ? {} : { _id: { $in: familyIds } };
+      const personalMember = req.user.role === 'user' && req.user.linkedMember
+        ? await Member.findOne({
+          _id: req.user.linkedMember,
+          family: { $in: familyIds || [] },
+        })
+          .select('name photo memberNumber gender dob generation family')
+          .populate('family', 'familyName familyNumber')
+          .lean()
+        : null;
+      const [
+        totalMembers,
+        totalFamilies,
+        gender,
+        lifeStatus,
+        generations,
+        recentMembers,
+      ] = await Promise.all([
+        Member.countDocuments(memberFilter),
+        Family.countDocuments(familyFilter),
+        Member.aggregate([
+          { $match: memberFilter },
+          { $group: { _id: '$gender', count: { $sum: 1 } } },
+        ]),
+        Member.aggregate([
+          { $match: memberFilter },
+          { $group: { _id: '$isAlive', count: { $sum: 1 } } },
+        ]),
+        Member.distinct('generation', memberFilter),
+        Member.find(memberFilter)
+          .select('name photo gender isAlive createdAt')
+          .sort({ createdAt: -1 })
+          .limit(5),
+      ]);
+
+      return res.json({
+        summary: { totalMembers, totalFamilies },
+        demographics: {
+          gender,
+          lifeStatus,
+          generations: generations.map((generation) => ({ generation, count: null })),
+        },
+        recent: { members: recentMembers },
+        personalMember,
+      });
+    }
+
     const [
       totalMembers,
       totalFamilies,
@@ -249,6 +300,9 @@ export const getDashboardStats = async (req, res) => {
 
 export const getQuickStats = async (req, res) => {
   try {
+    const familyIds = await authorizedFamilyIds(req.user);
+    const memberFilter = familyIds === null ? {} : { family: { $in: familyIds } };
+    const familyFilter = familyIds === null ? {} : { _id: { $in: familyIds } };
     const [
       totalMembers,
       totalFamilies,
@@ -258,13 +312,13 @@ export const getQuickStats = async (req, res) => {
       livingCount,
       deceasedCount,
     ] = await Promise.all([
-      Member.countDocuments(),
-      Family.countDocuments(),
-      Member.distinct('generation').then(gens => gens.filter(g => g !== undefined).length),
-      Member.countDocuments({ gender: 'male' }),
-      Member.countDocuments({ gender: 'female' }),
-      Member.countDocuments({ isAlive: true }),
-      Member.countDocuments({ isAlive: false }),
+      Member.countDocuments(memberFilter),
+      Family.countDocuments(familyFilter),
+      Member.distinct('generation', memberFilter).then(gens => gens.filter(g => g !== undefined).length),
+      Member.countDocuments({ ...memberFilter, gender: 'male' }),
+      Member.countDocuments({ ...memberFilter, gender: 'female' }),
+      Member.countDocuments({ ...memberFilter, isAlive: true }),
+      Member.countDocuments({ ...memberFilter, isAlive: false }),
     ]);
 
     res.json({

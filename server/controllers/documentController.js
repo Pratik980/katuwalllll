@@ -95,8 +95,8 @@ export const uploadDocument = async (req, res) => {
     });
     await notification.save();
 
-    io.emit('document:uploaded', document);
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('document:uploaded', document);
+    io.to('role:admin').emit('notification:new', notification);
 
     res.status(201).json(document);
   } catch (error) {
@@ -125,30 +125,42 @@ export const updateDocument = async (req, res) => {
       uploadedBy: req.user?._id || null,
     };
 
-    // If new file uploaded, delete old one
+    const oldFileUrl = document.fileUrl;
     if (req.file) {
-      // Delete old file from Cloudinary
-      if (document.fileUrl) {
-        try {
-          const publicId = document.fileUrl.split('/').pop().split('.')[0];
-          await cloudinary.uploader.destroy(publicId);
-        } catch (err) {
-          console.error('Error deleting old file:', err);
-        }
-      }
       updateData.fileUrl = req.file.path;
       updateData.fileName = req.file.originalname;
       updateData.fileSize = req.file.size;
       updateData.mimeType = req.file.mimetype;
     }
 
-    const updatedDocument = await Document.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    let updatedDocument;
+    try {
+      updatedDocument = await Document.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        { new: true, runValidators: true }
+      );
+    } catch (error) {
+      if (req.file?.filename) {
+        try {
+          await cloudinary.uploader.destroy(req.file.filename);
+        } catch (cleanupError) {
+          console.error('Error deleting rejected replacement file:', cleanupError);
+        }
+      }
+      throw error;
+    }
 
-    io.emit('document:updated', updatedDocument);
+    if (req.file && oldFileUrl) {
+      try {
+        const publicId = oldFileUrl.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(publicId);
+      } catch (error) {
+        console.error('Error deleting replaced document file:', error);
+      }
+    }
+
+    io.to('role:admin').emit('document:updated', updatedDocument);
 
     res.json(updatedDocument);
   } catch (error) {
@@ -175,7 +187,7 @@ export const deleteDocument = async (req, res) => {
 
     await document.deleteOne();
 
-    io.emit('document:deleted', { id: req.params.id });
+    io.to('role:admin').emit('document:deleted', { id: req.params.id });
 
     res.json({ message: 'Document deleted successfully' });
   } catch (error) {
@@ -229,7 +241,7 @@ export const verifyDocument = async (req, res) => {
     document.uploadedBy = req.user?._id || null;
     await document.save();
 
-    io.emit('document:verified', document);
+    io.to('role:admin').emit('document:verified', document);
 
     res.json({ message: 'Document verified successfully', document });
   } catch (error) {

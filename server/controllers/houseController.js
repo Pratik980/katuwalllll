@@ -103,8 +103,8 @@ export const createHouse = async (req, res) => {
     });
     await notification.save();
 
-    io.emit('house:created', house);
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('house:created', house);
+    io.to('role:admin').emit('notification:new', notification);
 
     res.status(201).json(house);
   } catch (error) {
@@ -141,8 +141,8 @@ export const updateHouse = async (req, res) => {
     });
     await notification.save();
 
-    io.emit('house:updated', updatedHouse);
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('house:updated', updatedHouse);
+    io.to('role:admin').emit('notification:new', notification);
 
     res.json(updatedHouse);
   } catch (error) {
@@ -170,7 +170,7 @@ export const deleteHouse = async (req, res) => {
 
     await house.deleteOne();
 
-    io.emit('house:deleted', { id: req.params.id });
+    io.to('role:admin').emit('house:deleted', { id: req.params.id });
 
     res.json({ message: 'House deleted successfully' });
   } catch (error) {
@@ -181,9 +181,12 @@ export const deleteHouse = async (req, res) => {
 
 export const getNextHouseNumber = async (req, res) => {
   try {
-    const lastHouse = await House.findOne().sort({ houseNumber: -1 });
-    const nextNumber = lastHouse ? parseInt(lastHouse.houseNumber) + 1 : 1;
-    res.json({ nextHouseNumber: String(nextNumber) });
+    const houses = await House.find().select('houseNumber').lean();
+    const maxHouseNumber = houses.reduce(
+      (max, house) => Math.max(max, Number.parseInt(house.houseNumber, 10) || 0),
+      0
+    );
+    res.json({ nextHouseNumber: String(maxHouseNumber + 1) });
   } catch (error) {
     console.error('getNextHouseNumber Error:', error);
     res.status(500).json({ message: error.message });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getFamilies } from '../api/families';
+import { getFamilies, getFamilyById } from '../api/families';
 import { getMembers } from '../api/members';
 import { 
   generateFamilyReport, 
@@ -24,8 +24,13 @@ import {
   FaChevronUp, FaPrint, FaSearch
 } from 'react-icons/fa';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const Reports = () => {
+  const { user } = useAuth();
+  const { t } = useLanguage();
+  const isAdmin = user?.role === 'admin';
   const [selectedFamily, setSelectedFamily] = useState(null);
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
@@ -88,10 +93,12 @@ const Reports = () => {
   const handleExportFamilyReport = async (familyId, familyName) => {
     setExporting(true);
     try {
-      const blob = await generateFamilyReport({ 
-        familyId: familyId,
-        format: 'excel'
-      });
+      const blob = familyId === 'all'
+        ? await generateAllFamiliesReport({ format: 'excel' })
+        : await generateFamilyReport({
+          familyId,
+          format: 'excel'
+        });
       
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -102,9 +109,9 @@ const Reports = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      toast.success('Family report exported successfully');
+      toast.success(t('family_report_exported'));
     } catch (error) {
-      toast.error('Failed to export family report');
+      toast.error(t('family_report_export_failed'));
     } finally {
       setExporting(false);
     }
@@ -126,68 +133,81 @@ const Reports = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      toast.success('All families report exported successfully');
+      toast.success(t('all_families_report_exported'));
     } catch (error) {
-      toast.error('Failed to export all families report');
+      toast.error(t('all_families_report_export_failed'));
     } finally {
       setExporting(false);
     }
   };
 
   const handleExportMemberReport = async (type) => {
+    if (!isAdmin && !filters.family) {
+      toast.error('Select an authorized family before exporting this report.');
+      return;
+    }
     setExporting(true);
     try {
       let blob;
       let filename;
       const queryParams = { format: 'excel', ...filters };
+      const scopedParams = {
+        ...queryParams,
+        familyId: filters.family,
+      };
       
       switch(type) {
         case 'all':
-          blob = await exportAllMembers({ ...queryParams });
-          filename = `all-members-report-${Date.now()}.xlsx`;
+          if (isAdmin) {
+            blob = await exportAllMembers(queryParams);
+            filename = `all-members-report-${Date.now()}.xlsx`;
+          } else {
+            blob = await generateMemberReport(scopedParams);
+            filename = `family-members-report-${Date.now()}.xlsx`;
+          }
           break;
         case 'verified':
-          blob = await generateMemberReport({ ...queryParams, verification: 'verified' });
+          blob = await generateMemberReport({ ...scopedParams, verification: 'verified' });
           filename = `verified-members-report-${Date.now()}.xlsx`;
           break;
         case 'pending':
-          blob = await generateMemberReport({ ...queryParams, verification: 'pending' });
+          blob = await generateMemberReport({ ...scopedParams, verification: 'pending' });
           filename = `pending-members-report-${Date.now()}.xlsx`;
           break;
         case 'male':
-          blob = await generateMemberReport({ ...queryParams, gender: 'male' });
+          blob = await generateMemberReport({ ...scopedParams, gender: 'male' });
           filename = `male-members-report-${Date.now()}.xlsx`;
           break;
         case 'female':
-          blob = await generateMemberReport({ ...queryParams, gender: 'female' });
+          blob = await generateMemberReport({ ...scopedParams, gender: 'female' });
           filename = `female-members-report-${Date.now()}.xlsx`;
           break;
         case 'living':
-          blob = await generateMemberReport({ ...queryParams, status: 'living' });
+          blob = await generateMemberReport({ ...scopedParams, status: 'living' });
           filename = `living-members-report-${Date.now()}.xlsx`;
           break;
         case 'deceased':
-          blob = await generateMemberReport({ ...queryParams, status: 'deceased' });
+          blob = await generateMemberReport({ ...scopedParams, status: 'deceased' });
           filename = `deceased-members-report-${Date.now()}.xlsx`;
           break;
         case 'generation':
-          blob = await generateGenerationReport({ ...queryParams });
+          blob = await generateGenerationReport(scopedParams);
           filename = `generation-report-${Date.now()}.xlsx`;
           break;
         case 'donation':
-          blob = await generateDonationReport({ ...queryParams });
+          blob = await generateDonationReport(queryParams);
           filename = `donation-report-${Date.now()}.xlsx`;
           break;
         case 'demographic':
-          blob = await generateDemographicReport({ ...queryParams });
+          blob = await generateDemographicReport(scopedParams);
           filename = `demographic-report-${Date.now()}.xlsx`;
           break;
         case 'genealogy':
-          blob = await generateGenealogyReport({ ...queryParams });
+          blob = await generateGenealogyReport(scopedParams);
           filename = `genealogy-report-${Date.now()}.xlsx`;
           break;
         default:
-          blob = await generateMemberReport({ ...queryParams });
+          blob = await generateMemberReport(scopedParams);
           filename = `members-report-${Date.now()}.xlsx`;
       }
       
@@ -200,9 +220,9 @@ const Reports = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      toast.success('Report exported successfully');
+      toast.success(t('report_exported'));
     } catch (error) {
-      toast.error('Failed to export report');
+      toast.error(t('report_export_failed'));
     } finally {
       setExporting(false);
     }
@@ -304,7 +324,7 @@ const Reports = () => {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-        {reportCards.map((card) => (
+        {reportCards.filter((card) => isAdmin || card.id !== 'donation').map((card) => (
           <ReportCard key={card.id} {...card} />
         ))}
       </div>
@@ -315,8 +335,8 @@ const Reports = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-          <p className="text-gray-600">View and export family and member reports</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('reports')}</h1>
+          <p className="text-gray-600">{t('reports_description')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handlePrint}>
@@ -356,7 +376,7 @@ const Reports = () => {
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex items-center gap-2 mb-3">
           <FaFilter className="text-gray-400" />
-          <h3 className="font-medium text-gray-700">Filters</h3>
+          <h3 className="font-medium text-gray-700">{t('filters')}</h3>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <select
@@ -364,7 +384,7 @@ const Reports = () => {
             onChange={(e) => setFilters({...filters, family: e.target.value})}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
           >
-            <option value="">All Families</option>
+            {isAdmin && <option value="">{t('all_families')}</option>}
             {familiesData?.data?.map(f => (
               <option key={f._id} value={f._id}>{f.familyName}</option>
             ))}
@@ -374,7 +394,7 @@ const Reports = () => {
             onChange={(e) => setFilters({...filters, generation: e.target.value})}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
           >
-            <option value="">All Generations</option>
+            <option value="">{t('all_generations')}</option>
             <option value="1">Generation 1</option>
             <option value="2">Generation 2</option>
             <option value="3">Generation 3</option>
@@ -441,16 +461,18 @@ const Reports = () => {
         <>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-800">Families</h2>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleExportAllFamilies}
-                disabled={exporting}
-              >
-                <FaFileExcel className="mr-2" />
-                {exporting ? 'Exporting...' : 'Export All Families'}
-              </Button>
+              <h2 className="text-lg font-semibold text-gray-800">{t('families')}</h2>
+              {isAdmin && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleExportAllFamilies}
+                  disabled={exporting}
+                >
+                  <FaFileExcel className="mr-2" />
+                  {exporting ? t('exporting') : t('export_all_families')}
+                </Button>
+              )}
             </div>
             <div className="relative max-w-md">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -468,66 +490,66 @@ const Reports = () => {
       ) : (
         <>
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800">Member Reports</h2>
+            <h2 className="text-lg font-semibold text-gray-800">{t('member_reports')}</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
               <MemberReportButton 
-                label="All Members" 
+                label={t('all_members')} 
                 icon={FaUsers} 
                 onClick={() => handleExportMemberReport('all')}
                 color="blue"
                 loading={exporting}
               />
               <MemberReportButton 
-                label="Verified Members" 
+                label={t('verified_members')} 
                 icon={FaUser} 
                 onClick={() => handleExportMemberReport('verified')}
                 color="green"
                 loading={exporting}
               />
               <MemberReportButton 
-                label="Pending Verification" 
+                label={t('pending_verification')} 
                 icon={FaUser} 
                 onClick={() => handleExportMemberReport('pending')}
                 color="yellow"
                 loading={exporting}
               />
               <MemberReportButton 
-                label="Male Members" 
+                label={t('male_members')} 
                 icon={FaUser} 
                 onClick={() => handleExportMemberReport('male')}
                 color="blue"
                 loading={exporting}
               />
               <MemberReportButton 
-                label="Female Members" 
+                label={t('female_members')} 
                 icon={FaUserFriends} 
                 onClick={() => handleExportMemberReport('female')}
                 color="pink"
                 loading={exporting}
               />
               <MemberReportButton 
-                label="Living Members" 
+                label={t('living_members')} 
                 icon={FaHeart} 
                 onClick={() => handleExportMemberReport('living')}
                 color="green"
                 loading={exporting}
               />
               <MemberReportButton 
-                label="Deceased Members" 
+                label={t('deceased_members')} 
                 icon={FaHeart} 
                 onClick={() => handleExportMemberReport('deceased')}
                 color="gray"
                 loading={exporting}
               />
               <MemberReportButton 
-                label="Members by Generation" 
+                label={t('members_by_generation')} 
                 icon={FaChartBar} 
                 onClick={() => handleExportMemberReport('generation')}
                 color="purple"
                 loading={exporting}
               />
               <MemberReportButton 
-                label="Demographic Report" 
+                label={t('demographic_report')} 
                 icon={FaMapMarker} 
                 onClick={() => handleExportMemberReport('demographic')}
                 color="indigo"
@@ -564,7 +586,9 @@ const Reports = () => {
         reportType={selectedReportCard}
         filters={filters}
         families={familiesData?.data || []}
+        isAdmin={isAdmin}
         onExport={handleExportMemberReport}
+        onFamilyExport={handleExportFamilyReport}
         exporting={exporting}
       />
     </div>
@@ -891,7 +915,17 @@ const FamilyReportModal = ({ isOpen, onClose, family, familyDetails, onExport, e
 };
 
 // Report Card Modal
-const ReportCardModal = ({ isOpen, onClose, reportType, filters, families, onExport, exporting }) => {
+const ReportCardModal = ({
+  isOpen,
+  onClose,
+  reportType,
+  filters,
+  families,
+  isAdmin,
+  onExport,
+  onFamilyExport,
+  exporting,
+}) => {
   if (!isOpen) return null;
 
   const renderFamilySelect = () => {
@@ -899,18 +933,20 @@ const ReportCardModal = ({ isOpen, onClose, reportType, filters, families, onExp
       <div className="space-y-3">
         <h4 className="font-medium text-gray-700">Select Family</h4>
         <div className="space-y-2 max-h-60 overflow-y-auto">
-          <button
-            onClick={() => onExport('all', 'all-families')}
-            disabled={exporting}
-            className="w-full text-left px-4 py-2 rounded-lg border border-gray-200 hover:bg-green-50 hover:border-green-300 transition-colors flex items-center justify-between"
-          >
-            <span className="font-medium text-gray-700">All Families</span>
-            <span className="text-sm text-gray-500">Download All</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => onFamilyExport('all', 'all-families')}
+              disabled={exporting}
+              className="w-full text-left px-4 py-2 rounded-lg border border-gray-200 hover:bg-green-50 hover:border-green-300 transition-colors flex items-center justify-between"
+            >
+              <span className="font-medium text-gray-700">All Families</span>
+              <span className="text-sm text-gray-500">Download All</span>
+            </button>
+          )}
           {families.map((family) => (
             <button
               key={family._id}
-              onClick={() => onExport(family._id, family.familyName)}
+              onClick={() => onFamilyExport(family._id, family.familyName)}
               disabled={exporting}
               className="w-full text-left px-4 py-2 rounded-lg border border-gray-200 hover:bg-green-50 hover:border-green-300 transition-colors flex items-center justify-between"
             >

@@ -1,8 +1,9 @@
 // src/pages/Chat.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getChatRooms, getChatMessages, sendMessage } from '../api/chat';
+import { getChatRooms, getChatMessages, sendMessage, markMessagesAsRead, getUnreadCount } from '../api/chat';
 import { useSocket } from '../context/SocketContext';
+import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
 import { formatDistanceToNow } from 'date-fns';
@@ -16,6 +17,7 @@ const Chat = () => {
   const messagesEndRef = useRef(null);
   const queryClient = useQueryClient();
   const { socket, isConnected, joinRoom, leaveRoom, on } = useSocket();
+  const { user } = useAuth();
 
   // Get chat rooms
   const { data: roomsData, isLoading: roomsLoading } = useQuery({
@@ -29,12 +31,17 @@ const Chat = () => {
     queryFn: () => getChatMessages(selectedRoom, { limit: 100 }),
     enabled: !!selectedRoom,
   });
+  const { data: unreadCounts = [] } = useQuery({
+    queryKey: ['chatUnreadCounts'],
+    queryFn: getUnreadCount,
+  });
+  const unreadByRoom = Object.fromEntries(unreadCounts.map(({ room, unread }) => [room, unread]));
 
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: sendMessage,
     onSuccess: (newMessage) => {
-      setMessages((prev) => [...prev, newMessage]);
+      setMessages((prev) => prev.some((item) => item._id === newMessage._id) ? prev : [...prev, newMessage]);
       setMessage('');
     },
   });
@@ -43,8 +50,11 @@ const Chat = () => {
   useEffect(() => {
     if (messagesData?.data) {
       setMessages(messagesData.data);
+      markMessagesAsRead(selectedRoom)
+        .then(() => queryClient.invalidateQueries({ queryKey: ['chatUnreadCounts'] }))
+        .catch((error) => toast.error(error.response?.data?.message || 'Could not update message read status.'));
     }
-  }, [messagesData]);
+  }, [messagesData, selectedRoom, queryClient]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -70,8 +80,18 @@ const Chat = () => {
     if (!socket) return;
 
     const handleNewMessage = (newMessage) => {
+      const senderId = newMessage.sender?._id || newMessage.sender;
+      if (String(senderId) !== String(user?.id)) {
+        toast(`${newMessage.senderName} sent a message in ${newMessage.room.replaceAll('_', ' ')}.`);
+        queryClient.invalidateQueries({ queryKey: ['chatUnreadCounts'] });
+      }
       if (newMessage.room === selectedRoom) {
-        setMessages((prev) => [...prev, newMessage]);
+        setMessages((prev) => prev.some((item) => item._id === newMessage._id) ? prev : [...prev, newMessage]);
+        if (String(senderId) !== String(user?.id)) {
+          markMessagesAsRead(selectedRoom)
+            .then(() => queryClient.invalidateQueries({ queryKey: ['chatUnreadCounts'] }))
+            .catch((error) => toast.error(error.response?.data?.message || 'Could not update message read status.'));
+        }
       }
     };
 
@@ -80,7 +100,7 @@ const Chat = () => {
     return () => {
       socket.off('chat:message', handleNewMessage);
     };
-  }, [socket, selectedRoom, on]);
+  }, [socket, selectedRoom, on, user?.id, queryClient]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -134,9 +154,9 @@ const Chat = () => {
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">{room.name}</span>
-                  {room.unreadCount > 0 && (
+                  {unreadByRoom[room.id] > 0 && (
                     <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
-                      {room.unreadCount}
+                      {unreadByRoom[room.id]}
                     </span>
                   )}
                 </div>
@@ -154,11 +174,11 @@ const Chat = () => {
                 {messages.map((msg) => (
                   <div
                     key={msg._id}
-                    className={`flex ${msg.senderName === 'Guest' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${String(msg.sender?._id || msg.sender) === String(user?.id) ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
                       className={`max-w-[70%] rounded-lg px-4 py-2 ${
-                        msg.senderName === 'Guest'
+                        String(msg.sender?._id || msg.sender) === String(user?.id)
                           ? 'bg-primary text-white'
                           : 'bg-gray-100 text-gray-900'
                       }`}
@@ -172,6 +192,11 @@ const Chat = () => {
                           addSuffix: true,
                         })}
                       </p>
+                      {String(msg.sender?._id || msg.sender) === String(user?.id) && (
+                        <p className="text-[10px] opacity-75">
+                          {msg.readBy?.length ? 'Read' : 'Sent'}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}

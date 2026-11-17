@@ -52,12 +52,30 @@ const logoStorage = new CloudinaryStorage({
   },
 });
 
+const userPhotoStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'user-profiles',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 500, height: 500, crop: 'limit' }],
+  },
+});
+
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(new Error('Invalid file type. Only JPEG, PNG, GIF, WEBP, and PDF are allowed.'), false);
+  }
+};
+
+const imageOnlyFilter = (req, file, cb) => {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid image type. Only JPEG, PNG, and WEBP are allowed.'), false);
   }
 };
 
@@ -86,6 +104,12 @@ export const uploadLogo = multer({
   fileFilter,
 });
 
+export const uploadUserPhoto = multer({
+  storage: userPhotoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: imageOnlyFilter,
+});
+
 // Single file uploads
 // export const uploadSinglePhoto = uploadPhoto.single('photo');
 export const uploadSinglePhoto = uploadPhoto.fields([
@@ -99,6 +123,7 @@ export const uploadSinglePhoto = uploadPhoto.fields([
 export const uploadSingleDocument = uploadDocument.single('file');
 export const uploadSingleFamilyPhoto = uploadFamilyPhoto.single('familyPhoto');
 export const uploadSingleLogo = uploadLogo.single('logo');
+export const uploadSingleUserPhoto = uploadUserPhoto.single('photo');
 
 // Multiple file uploads
 export const uploadMultiplePhotos = uploadPhoto.array('photos', 5);

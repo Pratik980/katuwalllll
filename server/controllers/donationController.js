@@ -1,6 +1,7 @@
 // backend/src/controllers/donationController.js - UPDATED
 import Donation from '../models/Donation.js';
 import Member from '../models/Member.js';
+import Counter from '../models/Counter.js';
 import Notification from '../models/Notification.js';
 import { io } from '../server.js';
 import { exportDonationsToExcel } from '../utils/excelExport.js';
@@ -8,8 +9,33 @@ import { exportDonationsToExcel } from '../utils/excelExport.js';
 // Helper function to generate receipt number
 const generateReceiptNumber = async () => {
   const year = new Date().getFullYear();
-  const count = await Donation.countDocuments();
-  return `R-${year}-${String(count + 1).padStart(4, '0')}`;
+  const counterId = 'donationReceiptNumber';
+  const existingCounter = await Counter.exists({ _id: counterId });
+
+  if (!existingCounter) {
+    const receipts = await Donation.find({
+      receiptNumber: /^R-\d{4}-\d+$/,
+    }).select('receiptNumber').lean();
+    const maxReceiptNumber = receipts.reduce((max, donation) => {
+      const receiptNumber = Number(donation.receiptNumber.split('-').at(-1));
+      return Number.isFinite(receiptNumber) ? Math.max(max, receiptNumber) : max;
+    }, 0);
+
+    try {
+      await Counter.create({ _id: counterId, seq: maxReceiptNumber });
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+    }
+  }
+
+  const counter = await Counter.findByIdAndUpdate(
+    counterId,
+    { $inc: { seq: 1 } },
+    { new: true }
+  );
+  if (!counter) throw new Error('Failed to allocate a donation receipt number');
+
+  return `R-${year}-${String(counter.seq).padStart(4, '0')}`;
 };
 
 // Get donations with search, filters, sorting, pagination
@@ -242,8 +268,8 @@ export const createDonation = async (req, res) => {
     await notification.save();
 
     if (io) {
-      io.emit('donation:created', donation);
-      io.emit('notification:new', notification);
+      io.to('role:admin').emit('donation:created', donation);
+      io.to('role:admin').emit('notification:new', notification);
     }
 
     res.status(201).json(donation);
@@ -291,7 +317,7 @@ export const updateDonation = async (req, res) => {
     ).populate('donorId', 'name photo phone email');
 
     if (io) {
-      io.emit('donation:updated', updatedDonation);
+      io.to('role:admin').emit('donation:updated', updatedDonation);
     }
 
     res.json(updatedDonation);
@@ -319,7 +345,7 @@ export const deleteDonation = async (req, res) => {
     await donation.deleteOne();
 
     if (io) {
-      io.emit('donation:deleted', { id: req.params.id });
+      io.to('role:admin').emit('donation:deleted', { id: req.params.id });
     }
 
     res.json({ message: 'Donation deleted successfully' });

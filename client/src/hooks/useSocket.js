@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { socketService } from '../api/socketService';
 
-export const useSocket = (event, callback, dependencies = []) => {
+export const useSocket = (event, callback) => {
   const callbackRef = useRef(callback);
 
   useEffect(() => {
@@ -19,7 +19,7 @@ export const useSocket = (event, callback, dependencies = []) => {
     return () => {
       socket.off(event, handler);
     };
-  }, [event, ...dependencies]);
+  }, [event]);
 };
 
 export const useSocketEmit = () => {

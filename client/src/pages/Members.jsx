@@ -728,7 +728,8 @@
 
 // src/pages/Members.jsx - UPDATED
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMembers, deleteMember, exportAllMembers } from '../api/members';
 import Table from '../components/Table';
@@ -738,8 +739,13 @@ import MemberProfile from '../components/MemberProfile';
 import { EyeIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, FunnelIcon, ArrowDownTrayIcon, PrinterIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import MemberForm from "../pages/DataEntry";
+import { useAuth } from '../context/AuthContext';
 
 const Members = () => {
+  const { user } = useAuth();
+  const location = useLocation();
+  const canManageMembers = user?.role === 'admin' || user?.role === 'staff';
+  const canExportMembers = user?.role === 'admin';
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({
@@ -762,12 +768,19 @@ const Members = () => {
   const [exporting, setExporting] = useState(false);
   const queryClient = useQueryClient();
 
+  useEffect(() => {
+    const memberSearch = new URLSearchParams(location.search).get('search') || '';
+    setSearch(memberSearch);
+    setPage(1);
+  }, [location.search]);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['members', page, search, filters],
     queryFn: () => getMembers({ 
       page, 
       limit: 10, 
       search,
+      hideSpouses: true,
       ...filters 
     }),
   });
@@ -882,7 +895,7 @@ const Members = () => {
           <p className="text-gray-600">View and manage all family members</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
+          {canExportMembers && <Button
             variant="outline"
             onClick={handleExport}
             disabled={exporting}
@@ -890,7 +903,7 @@ const Members = () => {
           >
             <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
             {exporting ? 'Exporting...' : 'Export All'}
-          </Button>
+          </Button>}
           <Button
             variant="outline"
             onClick={() => setIsFilterOpen(!isFilterOpen)}
@@ -1037,8 +1050,8 @@ const Members = () => {
           data={data?.data || []}
           loading={isLoading}
           onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
+          onEdit={canManageMembers ? handleEdit : undefined}
+          onDelete={canManageMembers ? handleDelete : undefined}
           onPrint={handlePrint}
           pagination={{
             currentPage: data?.pagination?.page || 1,
@@ -1062,7 +1075,7 @@ const Members = () => {
       </Modal>
 
       {/* Edit Member Modal */}
-      <Modal
+      {canManageMembers && <Modal
         isOpen={isEditModalOpen}
         onClose={() => {
           setIsEditModalOpen(false);
@@ -1085,7 +1098,7 @@ const Members = () => {
             setEditingMember(null);
           }}
         />
-      </Modal>
+      </Modal>}
     </div>
   );
 };

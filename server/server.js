@@ -3,8 +3,10 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { connectDB } from './config/database.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -24,8 +26,26 @@ import reportRoutes from './routes/reportRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
 import draftRoutes from './routes/draftRoutes.js';
 import houseRoutes from './routes/houseRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import adminUserRoutes from './routes/adminUserRoutes.js';
+import { authenticate, authorizedFamilyIds, getJwtSecret, requireCsrf, requireRole } from './middlewares/authentication.js';
+import User from './models/User.js';
 
 dotenv.config();
+
+const isAllowedOrigin = (origin, callback) => {
+  // const configuredOrigin = process.env.FRONTEND_URL || 'https://katuwalbanshabatika.netlify.app';
+  const configuredOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const isLocalDevelopmentOrigin =
+    process.env.NODE_ENV !== 'production' &&
+    /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin || '');
+
+  if (!origin || origin === configuredOrigin || isLocalDevelopmentOrigin) {
+    return callback(null, true);
+  }
+
+  return callback(new Error('Origin is not allowed by CORS'));
+};
 
 // Try to import logger, fallback to console if not available
 let logger;
@@ -49,13 +69,35 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    // origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    origin: process.env.FRONTEND_URL || 'https://katuwalbanshabatika.netlify.app',
+    origin: isAllowedOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
   },
   pingTimeout: 60000,
   pingInterval: 25000,
+});
+
+io.use(async (socket, next) => {
+  try {
+    const cookieHeader = socket.handshake.headers.cookie || '';
+    const cookies = Object.fromEntries(cookieHeader.split(';').map((part) => {
+      const separator = part.indexOf('=');
+      if (separator < 0) return ['', ''];
+      return [part.slice(0, separator).trim(), decodeURIComponent(part.slice(separator + 1).trim())];
+    }).filter(([name]) => name));
+    const token = cookies.access_token;
+    if (!token) return next(new Error('Authentication required.'));
+
+    const payload = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
+    const user = await User.findById(payload.sub).select('+tokenVersion');
+    if (!user || !user.isActive || !user.emailVerified || user.tokenVersion !== payload.ver) {
+      return next(new Error('Session is no longer valid.'));
+    }
+    socket.data.user = user;
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Middleware
@@ -71,10 +113,10 @@ app.use(helmet({
 
 app.use(compression());
 app.use(cors({
-  // origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-   origin: process.env.FRONTEND_URL || 'https://katuwalbanshabatika.netlify.app',
+  origin: isAllowedOrigin,
   credentials: true,
 }));
+app.use(cookieParser());
 
 // Logging
 if (process.env.NODE_ENV === 'production') {
@@ -93,6 +135,17 @@ app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
 // Routes
+app.use('/api/auth', authRoutes);
+app.use('/api', authenticate);
+app.use('/api', requireCsrf);
+app.use('/api/admin', adminUserRoutes);
+app.use('/api/donations', requireRole('admin'));
+app.use('/api/backup', requireRole('admin'));
+app.use('/api/organization', requireRole('admin'));
+app.use('/api/notifications', requireRole('admin'));
+app.use('/api/documents', requireRole('admin'));
+app.use('/api/houses', requireRole('admin'));
+app.use('/api/drafts', requireRole('admin'));
 app.use('/api/members', memberRoutes);
 app.use('/api/families', familyRoutes);
 app.use('/api/donations', donationRoutes);
@@ -123,27 +176,22 @@ app.use(errorHandler);
 
 // Socket.IO events
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-  
-  // Join chat rooms
+  const allowedChatRooms = new Set([
+    'general',
+    'announcements',
+    'family_discussion',
+    'events',
+    'genealogy_help',
+  ]);
+  socket.join(`role:${socket.data.user.role}`);
+  socket.join(`user:${socket.data.user._id}`);
+
   socket.on('joinChatRoom', (room) => {
-    socket.join(room);
-    console.log(`Socket ${socket.id} joined chat room: ${room}`);
+    if (typeof room === 'string' && allowedChatRooms.has(room)) socket.join(room);
   });
   
   socket.on('leaveChatRoom', (room) => {
-    socket.leave(room);
-    console.log(`Socket ${socket.id} left chat room: ${room}`);
-  });
-  
-  socket.on('join', (data) => {
-    socket.join(data.room);
-    console.log(`Socket ${socket.id} joined room ${data.room}`);
-  });
-  
-  socket.on('leave', (data) => {
-    socket.leave(data.room);
-    console.log(`Socket ${socket.id} left room ${data.room}`);
+    if (typeof room === 'string' && allowedChatRooms.has(room)) socket.leave(room);
   });
   
   socket.on('error', (error) => {
@@ -167,8 +215,8 @@ connectDB()
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`📡 API URL: http://localhost:${PORT}/api`);
-      // console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'https://katuwalbanshabatika.netlify.app'}`)
+      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
+      // console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'https://katuwalbanshabatika.netlify.app'}`)
       
       console.log(`📁 Upload limit: 15MB`);
     });

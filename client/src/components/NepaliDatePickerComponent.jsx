@@ -307,7 +307,7 @@ const NepaliDatePickerComponent = ({
           language="en"
         />
       </div>
-      <style jsx>{`
+      <style>{`
         /* ✅ FIXED: Calendar positioning - not clipped */
         .nepali-date-picker {
           width: 100% !important;

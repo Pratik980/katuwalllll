@@ -13,6 +13,7 @@ import {
 import { validate, memberValidation } from '../middlewares/validation.js';
 import { uploadSinglePhoto, handleUpload } from '../middlewares/upload.js';
 import { rateLimit } from '../middlewares/rateLimit.js';
+import { requireFamilyAccess, requireMemberFamilyAccess, requireRole } from '../middlewares/authentication.js';
 
 const router = express.Router();
 
@@ -21,14 +22,16 @@ router.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
 // GET routes
 router.get('/', getMembers);
-router.get('/stats', getMemberStats);
+router.get('/stats', requireRole('admin', 'staff'), getMemberStats);
 router.get('/search', searchMembers);
-router.get('/family/:familyId', getMembersByFamily);
-router.get('/:id', getMemberById);
+router.get('/family/:familyId', requireFamilyAccess, getMembersByFamily);
+router.get('/:id', requireMemberFamilyAccess, getMemberById);
 
 // POST routes with file upload
 router.post(
   '/',
+  requireRole('admin', 'staff'),
+  requireFamilyAccess,
   handleUpload(uploadSinglePhoto),
   validate(memberValidation),
   createMember
@@ -37,12 +40,14 @@ router.post(
 // PUT routes with file upload
 router.put(
   '/:id',
+  requireRole('admin', 'staff'),
+  requireMemberFamilyAccess,
   handleUpload(uploadSinglePhoto),
   validate(memberValidation),
   updateMember
 );
 
 // DELETE routes
-router.delete('/:id', deleteMember);
+router.delete('/:id', requireRole('admin', 'staff'), requireMemberFamilyAccess, deleteMember);
 
 export default router;

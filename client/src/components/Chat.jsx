@@ -6,9 +6,11 @@ import { socketService } from '../api/socketService';
 import { useChatRoom } from '../hooks/useSocket';
 import { CHAT_ROOMS } from '../utils/constants';
 import { timeAgo } from '../utils/formatters';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 export const Chat = () => {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [currentRoom, setCurrentRoom] = useState(CHAT_ROOMS[0].id);
   const [messages, setMessages] = useState([]);
@@ -67,8 +69,17 @@ export const Chat = () => {
   };
 
   const handleNewMessage = (message) => {
+    const senderId = message.sender?._id || message.sender;
+    if (String(senderId) !== String(user?.id)) {
+      toast(`${message.senderName} sent a message in ${message.room.replaceAll('_', ' ')}.`);
+    }
     if (message.room === currentRoom) {
       setMessages(prev => [...prev, message]);
+      if (String(senderId) !== String(user?.id)) {
+        chatService.markAsRead(currentRoom).catch((error) => {
+          toast.error(error.response?.data?.message || 'Could not update message read status.');
+        });
+      }
     }
   };
 
@@ -173,11 +184,11 @@ export const Chat = () => {
                 messages.map((message) => (
                   <div
                     key={message._id}
-                    className={`flex ${message.senderName === 'Guest' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${String(message.sender?._id || message.sender) === String(user?.id) ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
                       className={`max-w-[80%] p-3 rounded-lg ${
-                        message.senderName === 'Guest'
+                        String(message.sender?._id || message.sender) === String(user?.id)
                           ? 'bg-green-600 text-white'
                           : 'bg-gray-100 text-gray-800'
                       }`}

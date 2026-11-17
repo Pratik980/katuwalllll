@@ -583,33 +583,33 @@
 
 // src/pages/Settings.jsx - WITHOUT THEME (Only Language)
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import * as Icons from 'lucide-react';
 
 const Settings = () => {
   const [activeSection, setActiveSection] = useState('language');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
+  const { user } = useAuth();
   const { language, setLanguage, t } = useLanguage();
 
-  // Navigation items
   const navItems = [
     { id: 'language', label: t('language') || 'Language', icon: Icons.Languages },
-    { id: 'notifications', label: t('notifications') || 'Notifications', icon: Icons.Bell },
+    { id: 'account', label: t('account') || 'Account', icon: Icons.UserRound },
     { id: 'about', label: t('about') || 'About', icon: Icons.Info },
   ];
 
-  // Handle language change
-  const handleLanguageChange = (newLanguage) => {
-    setLanguage(newLanguage);
-    setHasUnsavedChanges(true);
-    toast.success(t('language_changed') || 'Language changed successfully');
+  const handleLanguageChange = async (newLanguage) => {
+    if (await setLanguage(newLanguage)) {
+      setHasUnsavedChanges(true);
+      toast.success(t('language_changed') || 'Language changed successfully');
+    }
   };
 
-  // Handle save
   const handleSave = () => {
     setIsLoading(true);
     try {
@@ -623,7 +623,6 @@ const Settings = () => {
     }
   };
 
-  // Render active section
   const renderSection = () => {
     switch (activeSection) {
       case 'language':
@@ -680,14 +679,28 @@ const Settings = () => {
           </div>
         );
 
-      case 'notifications':
+      case 'account':
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-900">
-              {t('notification_settings') || 'Notification Settings'}
+              {t('account_access') || 'Account access'}
             </h3>
-            <div className="text-gray-500">
-              Notification settings will be available soon.
+            <p className="text-sm leading-6 text-gray-600">
+              {t(`${user?.role || 'user'}_account_access`) || t('user_account_access')}
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                to="/profile"
+                className="inline-flex items-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                {t('manage_profile') || 'Manage profile'}
+              </Link>
+              <Link
+                to="/change-password"
+                className="inline-flex items-center rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-900"
+              >
+                {t('change_password') || 'Change password'}
+              </Link>
             </div>
           </div>
         );
@@ -716,9 +729,8 @@ const Settings = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-80px)] bg-gray-50">
-      {/* Left Navigation */}
-      <nav className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 overflow-y-auto flex-shrink-0">
+    <div className="flex min-h-[calc(100vh-80px)] flex-col bg-gray-50 md:flex-row">
+      <nav className="w-full flex-shrink-0 overflow-y-auto border-b border-gray-200 bg-white md:w-64 md:border-b-0 md:border-r">
         <div className="p-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">⚙️ {t('settings') || 'Settings'}</h2>
         </div>
@@ -753,7 +765,6 @@ const Settings = () => {
         </div>
       </nav>
 
-      {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto p-4 md:p-6 pb-32">
           <div className="mb-6">
@@ -770,8 +781,7 @@ const Settings = () => {
           </div>
         </div>
 
-        {/* Fixed Bottom Actions */}
-        <div className="fixed bottom-0 left-0 md:left-64 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-10">
+        <div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white p-4 shadow-lg">
           <div className="max-w-4xl mx-auto flex flex-wrap justify-end gap-3">
             <Button
               onClick={handleSave}

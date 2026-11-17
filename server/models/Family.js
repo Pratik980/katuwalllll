@@ -380,31 +380,26 @@ familySchema.pre('save', async function() {
   if (this.isNew) {
     // Auto-generate familyNumber
     if (!this.familyNumber) {
-      const lastFamily = await this.constructor
-        .findOne({ house: this.house })
-        .sort({ familyNumber: -1 });
-
-      const lastNumber = lastFamily ? parseInt(lastFamily.familyNumber, 10) : 0;
-      this.familyNumber = String(lastNumber + 1);
+      const families = await this.constructor
+        .find({ house: this.house })
+        .select('familyNumber')
+        .lean();
+      const maxFamilyNumber = families.reduce(
+        (max, family) => Math.max(max, Number.parseInt(family.familyNumber, 10) || 0),
+        0
+      );
+      this.familyNumber = String(maxFamilyNumber + 1);
       console.log(`📝 Auto-generated familyNumber: ${this.familyNumber} for house: ${this.house}`);
     }
 
     // ⭐ NEW: Auto-generate houseIdentifier (S1, S2, S3, etc.)
     if (!this.houseIdentifier) {
-      const lastFamily = await this.constructor
-        .findOne()
-        .sort({ houseIdentifier: -1 });
-
-      let lastNumber = 0;
-      if (lastFamily && lastFamily.houseIdentifier) {
-        const match = lastFamily.houseIdentifier.match(/^S(\d+)$/);
-        if (match) {
-          lastNumber = parseInt(match[1], 10);
-        }
-      }
-      
-      const nextNumber = lastNumber + 1;
-      this.houseIdentifier = `S${nextNumber}`;
+      const families = await this.constructor.find().select('houseIdentifier').lean();
+      const maxHouseIdentifier = families.reduce((max, family) => {
+        const match = /^S(\d+)$/.exec(family.houseIdentifier || '');
+        return Math.max(max, match ? Number(match[1]) : 0);
+      }, 0);
+      this.houseIdentifier = `S${maxHouseIdentifier + 1}`;
       console.log(`📝 Auto-generated houseIdentifier: ${this.houseIdentifier}`);
     }
   }

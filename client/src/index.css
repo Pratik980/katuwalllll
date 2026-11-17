@@ -1,55 +1,260 @@
-/* src/index.css */
 @import "tailwindcss";
 
-/* @theme {
-  --color-primary: #16a34a;
-  --color-primary-dark: #15803d;
-  --color-primary-light: #22c55e;
-  --color-secondary: #ffffff;
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f3f4f6;
-  --color-gray-200: #e5e7eb;
-  --color-gray-300: #d1d5db;
-  --color-gray-400: #9ca3af;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #17211d;
+  background: #f5f7f5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --surface: #ffffff;
+  --surface-muted: #f8faf8;
+  --ink: #17211d;
+  --ink-muted: #68766d;
+  --line: #e7ece8;
+  --brand: #18794e;
+  --brand-strong: #11643f;
+  --brand-soft: #e9f5ee;
+  --shadow-card: 0 2px 8px rgb(22 46 32 / 4%), 0 16px 38px rgb(22 46 32 / 3%);
 }
 
 * {
-  margin: 0;
-  padding: 0;
   box-sizing: border-box;
 }
 
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: #f3f4f6;
-}
-
-/* Smooth scroll */
 html {
+  min-width: 320px;
+  min-height: 100%;
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar */
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(ellipse at 86% 0%, rgb(228 241 232 / 58%), transparent 34rem),
+    #f5f7f5;
+  color: var(--ink);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgb(24 121 78 / 28%);
+  outline-offset: 2px;
+}
+
+::selection {
+  color: #104c32;
+  background: #ccebd8;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #16a34a;
-  border-radius: 4px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #cbd6ce;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #15803d;
-} */
+  background: #aab9ae;
+  background-clip: padding-box;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-main {
+  min-height: calc(100vh - 8rem);
+  padding: 6.25rem 1.25rem 2rem;
+}
+
+.app-page-wrap {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+
+.topbar {
+  height: 4.5rem;
+  border-color: rgb(228 234 229 / 84%);
+  background: rgb(255 255 255 / 88%);
+  box-shadow: 0 4px 20px rgb(20 43 29 / 3%);
+}
+
+.topbar-icon-button {
+  border: 1px solid var(--line);
+  background: #f8faf8;
+  color: #445249;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.topbar-icon-button:hover {
+  transform: translateY(-1px);
+  border-color: #cbdccf;
+  background: #edf5ef;
+}
+
+.sidebar-panel {
+  border-color: #e6ece7;
+  background: #fff;
+  box-shadow: 14px 0 36px rgb(20 43 29 / 5%);
+}
+
+.sidebar-link {
+  min-height: 2.8rem;
+}
+
+.dashboard-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background:
+    radial-gradient(circle at 85% 15%, rgb(155 214 169 / 24%), transparent 18rem),
+    linear-gradient(118deg, #123f2d 0%, #176344 55%, #218254 100%);
+  box-shadow: 0 18px 42px rgb(18 76 48 / 18%);
+}
+
+.dashboard-hero::after {
+  position: absolute;
+  z-index: -1;
+  right: -3rem;
+  bottom: -11rem;
+  width: 29rem;
+  height: 29rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2.5rem rgb(255 255 255 / 3%), 0 0 0 5rem rgb(255 255 255 / 3%);
+  content: "";
+}
+
+.dashboard-surface {
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.dashboard-stat {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.dashboard-stat:hover {
+  transform: translateY(-3px);
+  border-color: #d3e2d7;
+  box-shadow: 0 12px 30px rgb(22 46 32 / 8%);
+}
+
+.page-eyebrow {
+  color: var(--brand);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.app-page-wrap :where(h1, h2, h3) {
+  letter-spacing: -0.025em;
+}
+
+.app-page-wrap :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+  min-height: 2.75rem;
+  border-color: #dbe5dd;
+  border-radius: 0.75rem;
+  background-color: #fff;
+  color: var(--ink);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.app-page-wrap :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus {
+  border-color: #78b391;
+  box-shadow: 0 0 0 4px rgb(24 121 78 / 10%);
+  outline: none;
+}
+
+.app-page-wrap :where(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--brand);
+}
+
+.app-page-wrap :where(.bg-white.rounded-lg.border, .bg-white.rounded-xl.border, .bg-white.rounded-2xl.border) {
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.app-page-wrap table {
+  border-color: var(--line);
+}
+
+.app-page-wrap thead {
+  background: #f7faf8;
+}
+
+.app-page-wrap thead th {
+  color: #64736a;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+}
+
+.app-page-wrap tbody tr {
+  border-color: #edf1ee;
+  transition: background-color 140ms ease;
+}
+
+.app-page-wrap tbody tr:hover {
+  background-color: #f7faf8;
+}
+
+@media (min-width: 1024px) {
+  .app-main {
+    padding-inline: 2.25rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-main {
+    min-height: calc(100vh - 7rem);
+    padding: 5.5rem 1rem 1.5rem;
+  }
+
+  .app-page-wrap :where(table th, table td) {
+    padding-inline: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

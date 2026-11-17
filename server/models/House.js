@@ -91,9 +91,12 @@ houseSchema.set('toObject', { virtuals: true });
 // ⭐ FIXED: Pre-save hook for auto-generating houseNumber
 houseSchema.pre('save', async function() {
   if (this.isNew && !this.houseNumber) {
-    const lastHouse = await this.constructor.findOne().sort({ houseNumber: -1 });
-    const lastNumber = lastHouse ? parseInt(lastHouse.houseNumber) : 0;
-    this.houseNumber = String(lastNumber + 1);
+    const houses = await this.constructor.find().select('houseNumber').lean();
+    const maxHouseNumber = houses.reduce(
+      (max, house) => Math.max(max, Number.parseInt(house.houseNumber, 10) || 0),
+      0
+    );
+    this.houseNumber = String(maxHouseNumber + 1);
     console.log(`🏠 Auto-generated houseNumber: ${this.houseNumber}`);
   }
 });

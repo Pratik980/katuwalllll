@@ -123,12 +123,9 @@ export const restoreBackup = async (req, res) => {
     // Clear existing data (optional - you might want to implement soft restore)
     // For safety, we'll only restore collections that exist in backup
     for (const [collectionName, data] of Object.entries(backupData)) {
-      if (data.length > 0) {
-        // Drop existing collection
-        await db.collection(collectionName).drop().catch(() => {});
-        // Insert backup data
-        await db.collection(collectionName).insertMany(data);
-      }
+      const collection = db.collection(collectionName);
+      await collection.deleteMany({});
+      if (data.length > 0) await collection.insertMany(data);
     }
 
     res.json({ 

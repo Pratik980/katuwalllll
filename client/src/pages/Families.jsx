@@ -1030,9 +1030,9 @@
 
 // src/pages/Families.jsx - COMPLETE FIXED VERSION
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFamilies, closeFamily, reopenFamily, createFamily, updateFamily } from '../api/families';
+import { getFamilies, getFamilyTreeByFamily, closeFamily, reopenFamily, createFamily, updateFamily } from '../api/families';
 import { getMembers } from '../api/members';
 import FamilyCard from '../components/FamilyCard';
 import Modal from '../components/Modal';
@@ -1043,9 +1043,13 @@ import SearchableSelect from '../components/SearchableSelect';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { FaHome, FaPlus, FaUser, FaTimes, FaSave, FaTree, FaBuilding, FaPhone, FaUsers, FaInfoCircle } from 'react-icons/fa';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const Families = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const canManageMembers = isAdmin || user?.role === 'staff';
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [selectedFamily, setSelectedFamily] = useState(null);
@@ -1055,6 +1059,7 @@ const Families = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingFamily, setEditingFamily] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
   // --- Family Create/Edit Form State ---
@@ -1070,6 +1075,8 @@ const Families = () => {
     currentAddress: '',
     description: '',
     status: 'open',
+    familyPhoto: null,
+    removeFamilyPhoto: false,
   };
 
   const [familyForm, setFamilyForm] = useState(initialFamilyForm);
@@ -1085,6 +1092,12 @@ const Families = () => {
   const { data: membersData, isLoading: membersLoading } = useQuery({
     queryKey: ['members-for-families'],
     queryFn: () => getMembers({ limit: 10000 }),
+  });
+
+  const { data: selectedFamilyTree, isLoading: isTreeLoading, error: treeError } = useQuery({
+    queryKey: ['familyTree', selectedFamily?._id],
+    queryFn: () => getFamilyTreeByFamily(selectedFamily._id),
+    enabled: isTreeModalOpen && Boolean(selectedFamily?._id),
   });
 
   // --- Group members by family ---
@@ -1197,6 +1210,10 @@ const Families = () => {
     setIsDetailsModalOpen(true);
   };
 
+  const handleOpenFamilyEntry = (family) => {
+    navigate(`/data-entry?family=${encodeURIComponent(family._id)}`);
+  };
+
   const handleCloseFamily = (family) => {
     const reason = window.prompt('परिवार बन्द गर्ने कारण लेख्नुहोस्:');
     if (reason !== null) {
@@ -1230,6 +1247,8 @@ const Families = () => {
       currentAddress: family.currentAddress || '',
       description: family.description || '',
       status: family.status || 'open',
+      familyPhoto: null,
+      removeFamilyPhoto: false,
     });
     setFormErrors({});
     setIsEditModalOpen(true);
@@ -1289,15 +1308,25 @@ const Families = () => {
       description: familyForm.description?.trim() || undefined,
       status: familyForm.status || 'open',
     };
+    const formData = familyForm.familyPhoto || familyForm.removeFamilyPhoto
+      ? new FormData()
+      : submitData;
+    if (formData instanceof FormData) {
+      Object.entries(submitData).forEach(([key, value]) => {
+        if (value !== undefined) formData.append(key, value);
+      });
+      if (familyForm.familyPhoto) formData.append('familyPhoto', familyForm.familyPhoto);
+      if (familyForm.removeFamilyPhoto) formData.append('removeFamilyPhoto', 'true');
+    }
 
     try {
       if (editingFamily) {
         await updateFamilyMutation.mutateAsync({
           id: editingFamily._id,
-          data: submitData,
+          data: formData,
         });
       } else {
-        await createFamilyMutation.mutateAsync(submitData);
+        await createFamilyMutation.mutateAsync(formData);
       }
     } catch (error) {
       console.error('Family submit error:', error);
@@ -1323,6 +1352,47 @@ const Families = () => {
   const renderFamilyForm = (isEdit = false) => (
     <form onSubmit={handleFamilySubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="md:col-span-2 rounded-lg border border-gray-200 p-3">
+          <label className="block text-sm font-medium text-gray-700">
+            परिवारको फोटो
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="mt-2 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700"
+              onChange={(event) => {
+                const file = event.target.files?.[0] || null;
+                setFamilyForm((previous) => ({
+                  ...previous,
+                  familyPhoto: file,
+                  removeFamilyPhoto: false,
+                }));
+              }}
+            />
+          </label>
+          {editingFamily?.familyPhoto && !familyForm.removeFamilyPhoto && (
+            <div className="mt-3 flex items-center gap-3">
+              <img
+                src={editingFamily.familyPhoto}
+                alt={`${editingFamily.familyName} परिवार`}
+                className="h-14 w-14 rounded-full object-cover"
+              />
+              <button
+                type="button"
+                className="text-sm font-medium text-red-700 hover:text-red-800"
+                onClick={() => setFamilyForm((previous) => ({
+                  ...previous,
+                  familyPhoto: null,
+                  removeFamilyPhoto: true,
+                }))}
+              >
+                फोटो हटाउनुहोस्
+              </button>
+            </div>
+          )}
+          {familyForm.removeFamilyPhoto && (
+            <p className="mt-2 text-sm text-amber-700">हालको फोटो बचत गर्दा हटाइनेछ।</p>
+          )}
+        </div>
         {/* Family Name */}
         <div className="md:col-span-2">
           <FloatingInput
@@ -1504,10 +1574,10 @@ const Families = () => {
           </h1>
           <p className="text-gray-600">सबै परिवार र तिनीहरूको विवरण व्यवस्थापन गर्नुहोस्</p>
         </div>
-        <Button variant="primary" onClick={handleAddFamily} className="flex items-center">
+        {isAdmin && <Button variant="primary" onClick={handleAddFamily} className="flex items-center">
           <FaPlus className="mr-2" />
           परिवार थप्नुहोस्
-        </Button>
+        </Button>}
       </div>
 
       {/* Search Bar */}
@@ -1538,37 +1608,41 @@ const Families = () => {
               <div
                 key={family._id}
                 className={`bg-white rounded-2xl border ${isClosed ? 'border-gray-300' : 'border-green-200'} 
-                  overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer`}
-                onClick={() => handleViewDetails(family)}
+                  overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300`}
               >
-                <div className="relative">
-                  <div className={`h-32 ${isClosed ? 'bg-gray-300' : 'bg-gradient-to-r from-green-400 to-emerald-500'} 
-                    flex items-center justify-center`}>
-                    <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30">
-                      {family.familyPhoto ? (
+                <button
+                  type="button"
+                  className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-600"
+                  onClick={() => isClosed || !canManageMembers ? handleViewDetails(family) : handleOpenFamilyEntry(family)}
+                >
+                  <div className="relative">
+                    <div className={`h-32 ${isClosed ? 'bg-gray-300' : 'bg-gradient-to-r from-green-400 to-emerald-500'}
+                      flex items-center justify-center`}>
+                      <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30">
+                        {family.familyPhoto ? (
+                          <img
+                            src={family.familyPhoto}
+                            alt={family.familyName}
+                            className="w-full h-full object-cover rounded-full"
+                          />
+                        ) : (
+                          <FaHome className={`text-white text-3xl ${isClosed ? 'opacity-50' : ''}`} />
+                        )}
+                      </div>
+                    </div>
+
+                    {family.familyPhoto && (
+                      <div className="absolute -bottom-10 left-4 w-20 h-20 rounded-full border-4 border-white overflow-hidden shadow-lg">
                         <img 
                           src={family.familyPhoto} 
                           alt={family.familyName}
-                          className="w-full h-full object-cover rounded-full"
+                          className="w-full h-full object-cover"
                         />
-                      ) : (
-                        <FaHome className={`text-white text-3xl ${isClosed ? 'opacity-50' : ''}`} />
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                  
-                  {family.familyPhoto && (
-                    <div className="absolute -bottom-10 left-4 w-20 h-20 rounded-full border-4 border-white overflow-hidden shadow-lg">
-                      <img 
-                        src={family.familyPhoto} 
-                        alt={family.familyName}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                </div>
 
-                <div className="pt-8 pb-4 px-4">
+                  <div className="pt-8 pb-4 px-4">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-bold text-lg text-gray-800 truncate">
@@ -1609,8 +1683,33 @@ const Families = () => {
                       </div>
                     )}
                   </div>
+                  </div>
+                </button>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
+                <div className="px-4 pb-4 flex flex-wrap gap-2">
+                    {canManageMembers && <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleOpenFamilyEntry(family);
+                      }}
+                      className="text-xs"
+                      disabled={isClosed}
+                    >
+                      सदस्य थप्नुहोस्
+                    </Button>}
+                    {isAdmin && <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleViewDetails(family);
+                      }}
+                      className="text-xs"
+                    >
+                      विवरण
+                    </Button>}
                     <Button
                       size="sm"
                       variant="outline"
@@ -1634,7 +1733,7 @@ const Families = () => {
                     >
                       सम्पादन
                     </Button>
-                    {isClosed ? (
+                    {isAdmin && (isClosed ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -1658,10 +1757,9 @@ const Families = () => {
                       >
                         बन्द गर्नुहोस्
                       </Button>
-                    )}
+                    ))}
                   </div>
                 </div>
-              </div>
             );
           })}
         </div>
@@ -1693,7 +1791,7 @@ const Families = () => {
       )}
 
       {/* --- CREATE FAMILY MODAL --- */}
-      <Modal
+      {isAdmin && <Modal
         isOpen={isCreateModalOpen}
         onClose={() => {
           setIsCreateModalOpen(false);
@@ -1704,10 +1802,10 @@ const Families = () => {
         size="lg"
       >
         {renderFamilyForm(false)}
-      </Modal>
+      </Modal>}
 
       {/* --- EDIT FAMILY MODAL --- */}
-      <Modal
+      {isAdmin && <Modal
         isOpen={isEditModalOpen}
         onClose={() => {
           setIsEditModalOpen(false);
@@ -1719,7 +1817,7 @@ const Families = () => {
         size="lg"
       >
         {renderFamilyForm(true)}
-      </Modal>
+      </Modal>}
 
       {/* --- TREE MODAL --- */}
       <Modal
@@ -1733,13 +1831,19 @@ const Families = () => {
       >
         {selectedFamily && (
           <div className="min-h-[400px] max-h-[75vh] overflow-auto">
+            {isTreeLoading ? (
+              <p className="py-12 text-center text-sm text-gray-500">पारिवारिक वृक्ष लोड हुँदै...</p>
+            ) : treeError ? (
+              <p className="py-12 text-center text-sm text-red-600">पारिवारिक वृक्ष लोड गर्न सकिएन।</p>
+            ) : (
             <FamilyTreeView 
-              members={getFamilyMembers(selectedFamily._id)}
+              members={selectedFamilyTree?.data || []}
               familyId={selectedFamily._id}
               onMemberClick={(member) => {
                 navigate(`/profile/${member._id}`);
               }}
             />
+            )}
           </div>
         )}
       </Modal>
@@ -1923,6 +2027,12 @@ export default Families;
 
 //   const [familyForm, setFamilyForm] = useState(initialFamilyForm);
 //   const [formErrors, setFormErrors] = useState({});
+
+useEffect(() => {
+  const familySearch = new URLSearchParams(location.search).get('search') || '';
+  setSearch(familySearch);
+  setPage(1);
+}, [location.search]);
 
 //   // --- Fetch Families ---
 //   const { data, isLoading } = useQuery({

@@ -31,6 +31,10 @@ const chatSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  readBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  }],
   readAt: {
     type: Date,
     default: null,

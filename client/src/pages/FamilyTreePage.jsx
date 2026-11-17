@@ -1003,6 +1003,7 @@ const FamilyTreePage = () => {
   };
 
   const handleMemberClick = (member) => {
+    if (member.isSyntheticSpouse) return;
     navigate(`/profile/${member._id}`);
   };
 
@@ -1064,23 +1065,27 @@ const FamilyTreePage = () => {
 
     setExporting(true);
     try {
+      const toExportRow = (member, level, parent) => ({
+        'पुस्ता': level,
+        'नाम': member.name || '',
+        'सम्बन्ध': member.relationship || 'सदस्य',
+        'वंशज नं.': member.vanshaGenerationNumber || '',
+        'परिवार नं.': member.familyNumber || member.family?.familyNumber || '',
+        'जन्म मिति': member.dob ? new Date(member.dob).toLocaleDateString('ne-NP') : '',
+        'मृत्यु मिति': member.dod ? new Date(member.dod).toLocaleDateString('ne-NP') : '',
+        'जीवित': member.isAlive ? 'हो' : 'होइन',
+        'लिङ्ग': member.gender === 'male' ? 'पुरुष' : member.gender === 'female' ? 'महिला' : 'अन्य',
+        'फोटो': member.photo ? 'छ' : 'छैन',
+        'परिवार': member.family?.familyName || selectedFamily?.familyName || '',
+        'पूर्वज': parent || '',
+      });
+
       const flattenTree = (nodes, level = 0, parent = '') => {
         let result = [];
         nodes.forEach(node => {
-          result.push({
-            'पुस्ता': level,
-            'नाम': node.name || '',
-            'सम्बन्ध': node.relationship || 'सदस्य',
-            'वंशज नं.': node.vanshaGenerationNumber || '',
-            'परिवार नं.': node.familyNumber || '',
-            // ❌ REMOVED: रोल नं. field
-            'जन्म मिति': node.dob ? new Date(node.dob).toLocaleDateString('ne-NP') : '',
-            'मृत्यु मिति': node.dod ? new Date(node.dod).toLocaleDateString('ne-NP') : '',
-            'जीवित': node.isAlive ? 'हो' : 'होइन',
-            'लिङ्ग': node.gender === 'male' ? 'पुरुष' : node.gender === 'female' ? 'महिला' : 'अन्य',
-            'फोटो': node.photo ? 'छ' : 'छैन',
-            'परिवार': node.family?.familyName || '',
-            'पूर्वज': parent || '',
+          result.push(toExportRow(node, level, parent));
+          (node.spouses || []).forEach((spouse) => {
+            result.push(toExportRow(spouse, level, node.name));
           });
           if (node.children && node.children.length > 0) {
             result = result.concat(flattenTree(node.children, level + 1, node.name));
@@ -1288,6 +1293,7 @@ const FamilyTreePage = () => {
     const hasChildren = member.children && member.children.length > 0;
     const isExpanded = expandedNodes.has(member._id);
     const genderIcon = member.gender === 'male' ? '👨' : member.gender === 'female' ? '👩' : '👤';
+    const familyNumber = member.familyNumber || member.family?.familyNumber;
 
     return (
       <div className="relative group" key={member._id}>
@@ -1295,7 +1301,7 @@ const FamilyTreePage = () => {
           className={`
             bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 
             border-2 ${isDeceased ? 'border-gray-300' : isSpouse ? 'border-pink-300' : 'border-green-300'}
-            cursor-pointer w-52
+            cursor-pointer w-40
             hover:border-green-400
             ${isSpouse ? 'bg-pink-50/80' : ''}
           `}
@@ -1307,7 +1313,7 @@ const FamilyTreePage = () => {
               {/* Photo */}
               <div className="flex-shrink-0">
                 <div className={`
-                  w-14 h-14 rounded-full overflow-hidden border-2 
+                  w-10 h-10 rounded-full overflow-hidden border-2
                   ${isDeceased ? 'border-gray-300' : isSpouse ? 'border-pink-300' : 'border-green-200'}
                   bg-gray-100
                 `}>
@@ -1322,7 +1328,7 @@ const FamilyTreePage = () => {
                     />
                   ) : showPhotos ? (
                     <div className={`
-                      w-full h-full flex items-center justify-center text-2xl
+                      w-full h-full flex items-center justify-center text-xl
                       ${isDeceased ? 'bg-gray-200' : isSpouse ? 'bg-pink-100' : 'bg-gradient-to-br from-green-100 to-emerald-100'}
                     `}>
                       {genderIcon}
@@ -1339,7 +1345,7 @@ const FamilyTreePage = () => {
                   </span>
                   {isSpouse && (
                     <span className="text-[9px] bg-pink-50 text-pink-600 px-1.5 py-0.5 rounded-full">
-                      श्रीमती
+                      {member.gender === 'male' ? 'श्रीमान्' : 'श्रीमती'}
                     </span>
                   )}
                   {isDeceased && (
@@ -1360,8 +1366,8 @@ const FamilyTreePage = () => {
               {member.vanshaGenerationNumber && (
                 <p className="truncate">वंशज नं: {member.vanshaGenerationNumber}</p>
               )}
-              {member.familyNumber && (
-                <p className="truncate">परिवार नं: {member.familyNumber}</p>
+              {familyNumber && (
+                <p className="truncate">परिवार नं: {familyNumber}</p>
               )}
               {/* ❌ REMOVED: rollNumber */}
               {member.generation && (
@@ -1407,60 +1413,40 @@ const FamilyTreePage = () => {
 
     const hasChildren = node.children && node.children.length > 0;
     const isExpanded = expandedNodes.has(node._id);
-    const hasSpouse = node.spouse && Object.keys(node.spouse).length > 0;
-    const spouse = hasSpouse ? node.spouse : null;
-    const isDeceased = !node.isAlive;
+    const spouses = node.spouses?.length
+      ? node.spouses
+      : node.spouse
+        ? [node.spouse]
+        : [];
 
     return (
       <div key={node._id} className="flex flex-col items-center relative">
-        {/* Husband + Wife side by side */}
-        <div className="flex items-center gap-2 relative">
-          {/* Husband Card */}
-          <div className="relative">
-            {renderMemberCard(node, false)}
-          </div>
-
-          {/* Marriage connector line - only for spouse relationship */}
-          {hasSpouse && spouse && (
-            <>
-              <div className="flex flex-col items-center px-1">
-                <div className="w-10 h-0.5 bg-pink-400"></div>
-                <span className="text-[8px] text-pink-500 mt-0.5 whitespace-nowrap">विवाह</span>
-              </div>
-              {/* Spouse Card */}
+        <div className="flex items-center justify-center gap-2">
+          {renderMemberCard(node, false)}
+          {spouses.map((spouse) => (
+            <div key={spouse._id} className="flex items-center gap-2">
+              <span className="text-[8px] text-pink-500 whitespace-nowrap">विवाह</span>
               {renderMemberCard(spouse, true)}
-            </>
-          )}
+            </div>
+          ))}
         </div>
 
-        {/* Children connector - ORIGINATES FROM HUSBAND ONLY */}
         {hasChildren && isExpanded && (
-          <div className="relative mt-2 w-full">
-            {/* Vertical line from HUSBAND card center */}
-            <div className="absolute top-0 left-1/2 w-0.5 h-5 bg-green-400 -translate-x-1/2" />
-            
-            {/* Children container with horizontal bridge */}
-            <div className="relative pt-5">
-              {/* Horizontal bridge line connecting all children */}
-              {node.children.length > 1 && (
-                <div className="absolute top-5 left-[10%] right-[10%] h-0.5 bg-green-400" />
-              )}
-              
-              {/* Children positioned with equal spacing */}
-              <div className={`
-                flex justify-center items-start
-                ${node.children.length <= 3 ? 'gap-8' : 
-                  node.children.length <= 5 ? 'gap-6' : 
-                  node.children.length <= 8 ? 'gap-4' : 'gap-3'}
-              `}>
-                {node.children.map((child, index) => (
-                  <div key={child._id} className="relative flex flex-col items-center">
-                    {/* Vertical line from horizontal bridge to each child */}
-                    <div className="absolute -top-5 left-1/2 w-0.5 h-5 bg-green-400" />
-                    {renderFamilyNode(child, level + 1, true)}
-                  </div>
-                ))}
-              </div>
+          <div className="relative mt-3 w-max">
+            <div className="absolute -top-3 left-1/2 h-8 w-0.5 -translate-x-1/2 bg-green-400" />
+            <div className="flex items-start justify-center">
+              {node.children.map((child, index) => (
+                <div key={child._id} className="relative flex shrink-0 flex-col items-center px-2 pt-5">
+                  {node.children.length > 1 && index > 0 && (
+                    <div className="absolute left-0 right-1/2 top-0 h-0.5 bg-green-400" />
+                  )}
+                  {node.children.length > 1 && index < node.children.length - 1 && (
+                    <div className="absolute left-1/2 right-0 top-0 h-0.5 bg-green-400" />
+                  )}
+                  <div className="absolute left-1/2 top-0 h-5 w-0.5 -translate-x-1/2 bg-green-400" />
+                  {renderFamilyNode(child, level + 1, true)}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -1484,24 +1470,30 @@ const FamilyTreePage = () => {
     if (!nodes) return [];
     
     return nodes.map(node => {
-      // Find spouse if exists
-      let spouse = null;
-      if (node.spouse) {
-        const spouseId = typeof node.spouse === 'object' ? node.spouse._id : node.spouse;
-        if (spouseId && memberMap[spouseId]) {
-          spouse = memberMap[spouseId];
-        }
-      }
+    const spouseReferences = node.spouses?.length
+      ? node.spouses
+      : node.spouse
+        ? [node.spouse]
+        : [];
+    const spouses = spouseReferences
+      .map((reference) => {
+        const spouseId = typeof reference === 'object' ? reference._id : reference;
+        return typeof reference === 'object' ? reference : memberMap[spouseId];
+      })
+      .filter((spouse, index, list) =>
+        spouse && list.findIndex((candidate) => String(candidate._id) === String(spouse._id)) === index
+      );
       
-      // Recursively process children - children come from husband
-      const children = node.children ? buildTreeWithSpouses(node.children, memberMap, level + 1) : [];
+    // Recursively process children - children come from husband
+    const children = node.children ? buildTreeWithSpouses(node.children, memberMap, level + 1) : [];
       
-      return {
-        ...node,
-        spouse,
-        children,
-        level,
-      };
+    return {
+      ...node,
+      spouses,
+      spouse: spouses[0] || null,
+      children,
+      level,
+    };
     });
   }, []);
 
@@ -1568,7 +1560,7 @@ const FamilyTreePage = () => {
   const countTotalNodes = useCallback((nodes) => {
     let count = 0;
     const traverse = (node) => {
-      count++;
+      count += 1 + (node.spouses?.length || (node.spouse ? 1 : 0));
       if (node.children) {
         node.children.forEach(traverse);
       }
@@ -1974,7 +1966,7 @@ const FamilyTreePage = () => {
       </Modal>
 
       {/* ============ PRINT STYLES ============ */}
-      <style jsx global>{`
+      <style>{`
         /* Hide all UI elements during print */
         @media print {
           /* Hide ALL UI elements */

@@ -1,103 +1,56 @@
-// src/context/SocketContext.jsx
 import { createContext, useContext, useEffect, useState } from 'react';
-import io from 'socket.io-client';
-import toast from 'react-hot-toast';
+import { socketService } from '../api/socketService';
+import { useAuth } from './AuthContext';
 
-const SocketContext = createContext();
+const SocketContext = createContext(null);
 
 export const useSocket = () => {
   const context = useContext(SocketContext);
-  if (!context) {
-    throw new Error('useSocket must be used within a SocketProvider');
-  }
+  if (!context) throw new Error('useSocket must be used within a SocketProvider');
   return context;
 };
 
 export const SocketProvider = ({ children }) => {
+  const { user } = useAuth();
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const socketInstance = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
-      transports: ['websocket'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-
-    socketInstance.on('connect', () => {
-      console.log('Socket connected');
-      setIsConnected(true);
-      toast.success('Connected to real-time server');
-    });
-
-    socketInstance.on('disconnect', () => {
-      console.log('Socket disconnected');
-      setIsConnected(false);
-      toast.error('Disconnected from real-time server');
-    });
-
-    socketInstance.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-      toast.error('Failed to connect to real-time server');
-    });
-
-    // Listen for notifications
-    socketInstance.on('notification:new', (notification) => {
-      toast.success(notification.message || 'New notification');
-    });
-
-    // Listen for member updates
-    socketInstance.on('member:created', (member) => {
-      toast.success(`New member added: ${member.name}`);
-    });
-
-    socketInstance.on('member:updated', (member) => {
-      toast.success(`Member updated: ${member.name}`);
-    });
-
-    // Listen for donation updates
-    socketInstance.on('donation:created', (donation) => {
-      toast.success(`New donation received: ${donation.amount}`);
-    });
-
+    socketService.setAuthenticated(Boolean(user));
+    const socketInstance = socketService.connect();
+    const connected = () => setIsConnected(true);
+    const disconnected = () => setIsConnected(false);
+    socketInstance.on('connect', connected);
+    socketInstance.on('disconnect', disconnected);
     setSocket(socketInstance);
+    setIsConnected(socketInstance.connected);
 
     return () => {
-      socketInstance.disconnect();
+      socketInstance.off('connect', connected);
+      socketInstance.off('disconnect', disconnected);
     };
-  }, []);
+  }, [user?.id]);
 
   const joinRoom = (room) => {
-    if (socket && isConnected) {
-      socket.emit('join', { room });
-    }
+    if (socket && isConnected) socket.emit('joinChatRoom', room);
   };
 
   const leaveRoom = (room) => {
-    if (socket && isConnected) {
-      socket.emit('leave', { room });
-    }
+    if (socket && isConnected) socket.emit('leaveChatRoom', room);
   };
 
   const emit = (event, data) => {
-    if (socket && isConnected) {
-      socket.emit(event, data);
-    }
+    if (socket && isConnected) socket.emit(event, data);
   };
 
   const on = (event, callback) => {
-    if (socket) {
-      socket.on(event, callback);
-      return () => socket.off(event, callback);
-    }
-    return () => {};
+    if (!socket) return () => {};
+    socket.on(event, callback);
+    return () => socket.off(event, callback);
   };
 
   return (
-    <SocketContext.Provider
-      value={{ socket, isConnected, joinRoom, leaveRoom, emit, on }}
-    >
+    <SocketContext.Provider value={{ socket, isConnected, joinRoom, leaveRoom, emit, on }}>
       {children}
     </SocketContext.Provider>
   );

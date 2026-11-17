@@ -482,9 +482,9 @@ const VanshNoAutocomplete = ({
                 <p className="text-sm text-gray-500">कृपया पहिले परिवार चयन गर्नुहोस्</p>
               </div>
             ) : filteredOptions.length > 0 ? (
-              filteredOptions.map((vansh) => (
+              filteredOptions.map((vansh, index) => (
                 <div
-                  key={vansh}
+                  key={`${vansh}-${index}`}
                   className={`
                     px-3 py-2 text-sm cursor-pointer hover:bg-green-50 transition-colors flex items-center justify-between
                     ${displayValue === vansh ? 'bg-green-100 text-green-700 font-medium' : 'text-gray-700'}
@@ -518,7 +518,7 @@ const VanshNoAutocomplete = ({
               </div>
             ) : (
               <div className="px-3 py-2 text-sm text-gray-500 text-center">
-                खोज्नुहोस् वा नयाँ वंश नं. प्रविष्ट गर्नुहोस्
+                यस परिवारमा वंश नं. उपलब्ध छैन। नयाँ वंश नं. प्रविष्ट गर्नुहोस्।
               </div>
             )}
           </div>

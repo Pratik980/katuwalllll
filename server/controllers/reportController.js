@@ -2,6 +2,7 @@
 import Member from '../models/Member.js';
 import Family from '../models/Family.js';
 import Donation from '../models/Donation.js';
+import mongoose from 'mongoose';
 import { Parser } from 'json2csv';
 import XLSX from 'xlsx';
 
@@ -23,7 +24,9 @@ export const generateGenealogyReport = async (req, res) => {
 
     let query = {};
     if (familyId) {
-      query.family = familyId;
+      query.family = mongoose.Types.ObjectId.isValid(familyId)
+        ? new mongoose.Types.ObjectId(familyId)
+        : familyId;
     }
 
     const members = await Member.find(query)
@@ -313,7 +316,9 @@ export const generateGenerationReport = async (req, res) => {
 
     let query = {};
     if (familyId) {
-      query.family = familyId;
+      query.family = mongoose.Types.ObjectId.isValid(familyId)
+        ? new mongoose.Types.ObjectId(familyId)
+        : familyId;
     }
 
     const generationStats = await Member.aggregate([
@@ -376,26 +381,26 @@ export const generateDonationReport = async (req, res) => {
 
     let query = {};
     if (startDate && endDate) {
-      query.date = {
+      query.donationDate = {
         $gte: new Date(startDate),
         $lte: new Date(endDate),
       };
     }
 
     const donations = await Donation.find(query)
-      .populate('donor', 'name memberNumber phone email')
-      .sort({ date: -1 })
+      .populate('donorId', 'name memberNumber phone email')
+      .sort({ donationDate: -1 })
       .lean();
 
     const reportData = donations.map(d => ({
-      'Donor Name': d.donor?.name || 'Anonymous',
-      'Donor ID': d.donor?.memberNumber || '',
+      'Donor Name': d.donorName || 'Anonymous',
+      'Donor ID': d.donorId?.memberNumber || '',
       'Amount': d.amount,
       'Currency': d.currency || 'NPR',
-      'Purpose': d.purpose || 'general',
-      'Description': d.description || '',
-      'Date': formatDate(d.date),
-      'Receipt': d.receipt || '',
+      'Category': d.category || 'general',
+      'Description': d.remarks || '',
+      'Date': formatDate(d.donationDate),
+      'Receipt': d.receiptNumber || '',
     }));
 
     const totalAmount = donations.reduce((sum, d) => sum + d.amount, 0);
@@ -438,7 +443,9 @@ export const generateDemographicReport = async (req, res) => {
 
     let matchQuery = {};
     if (familyId) {
-      matchQuery.family = familyId;
+      matchQuery.family = mongoose.Types.ObjectId.isValid(familyId)
+        ? new mongoose.Types.ObjectId(familyId)
+        : familyId;
     }
 
     // Gender distribution

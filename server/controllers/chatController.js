@@ -26,10 +26,14 @@ export const getChatRooms = async (req, res) => {
 export const getChatMessages = async (req, res) => {
   try {
     const { room } = req.params;
-    const { page = 1, limit = 50 } = req.query;
+    const page = Number.parseInt(req.query.page || '1', 10);
+    const limit = Number.parseInt(req.query.limit || '50', 10);
 
     if (!CHAT_ROOMS.includes(room)) {
       return res.status(400).json({ message: 'Invalid chat room' });
+    }
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return res.status(400).json({ message: 'Invalid message page or page size.' });
     }
 
     const skip = (page - 1) * limit;
@@ -38,15 +42,15 @@ export const getChatMessages = async (req, res) => {
       Chat.find({ room })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit)),
+        .limit(limit),
       Chat.countDocuments({ room }),
     ]);
 
     res.json({
       data: messages.reverse(),
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total,
         pages: Math.ceil(total / limit),
       },
@@ -64,14 +68,14 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ message: 'Invalid chat room' });
     }
 
-    if (!message || message.trim().length === 0) {
-      return res.status(400).json({ message: 'Message cannot be empty' });
+    if (typeof message !== 'string' || message.trim().length === 0 || message.length > 2000) {
+      return res.status(400).json({ message: 'Message must contain between 1 and 2000 characters.' });
     }
 
     const chatMessage = new Chat({
       room,
-      sender: req.user?._id || null,
-      senderName: req.user?.name || 'Guest',
+      sender: req.user._id,
+      senderName: req.user.name,
       message: message.trim(),
     });
 
@@ -95,9 +99,9 @@ export const markMessagesAsRead = async (req, res) => {
     }
 
     await Chat.updateMany(
-      { room, isRead: false },
+      { room, isRead: false, sender: { $ne: req.user._id }, readBy: { $ne: req.user._id } },
       { 
-        isRead: true,
+        $addToSet: { readBy: req.user._id },
         readAt: new Date(),
       }
     );
@@ -112,7 +116,12 @@ export const getUnreadCount = async (req, res) => {
   try {
     const counts = await Promise.all(
       CHAT_ROOMS.map(async (room) => {
-        const count = await Chat.countDocuments({ room, isRead: false });
+        const count = await Chat.countDocuments({
+          room,
+          isRead: false,
+          sender: { $ne: req.user._id },
+          readBy: { $ne: req.user._id },
+        });
         return { room, unread: count };
       })
     );

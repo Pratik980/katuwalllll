@@ -73,7 +73,8 @@
 // //         { relatedMember: member._id },
 // //       ],
 // //       isActive: true,
-// //     }).populate('member relatedMember');
+// //     }).populate({ path: 'member', select: 'name photo memberNumber family', match: relatedMemberMatch })
+// //     }).populate({ path: 'relatedMember', select: 'name photo memberNumber family', match: relatedMemberMatch });
 
 // //     res.json({
 // //       ...member.toObject(),
@@ -1524,6 +1525,9 @@ import { io } from '../server.js';
 import cloudinary from '../config/cloudinary.js';
 import Notification from '../models/Notification.js';
 import Counter from '../models/Counter.js';
+import { authorizedFamilyIds } from '../middlewares/authentication.js';
+
+const escapeSearchTerm = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ⭐ UPDATED: Helper function to get sequential member number - M0001 format
 const getNextMemberNumber = async () => {
@@ -1599,24 +1603,28 @@ const cleanFamilyId = (family) => {
 // ⭐ UPDATED: getMembers - removed rollNumber from search
 export const getMembers = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, gender, status, generation, verificationStatus, family, district, province, house } = req.query;
+    const { page = 1, limit = 10, search, gender, status, generation, verificationStatus, family, district, province, house, hideSpouses } = req.query;
     const skip = (page - 1) * limit;
 
+    if (search !== undefined && (typeof search !== 'string' || search.length > 100)) {
+      return res.status(400).json({ message: 'Search query must be a string of at most 100 characters.' });
+    }
+    const searchTerm = search ? escapeSearchTerm(search.trim()) : '';
     let query = {};
     
-    if (search) {
+    if (searchTerm) {
       query = {
         $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { surname: { $regex: search, $options: 'i' } },
-          { memberNumber: { $regex: search, $options: 'i' } },
+          { name: { $regex: searchTerm, $options: 'i' } },
+          { surname: { $regex: searchTerm, $options: 'i' } },
+          { memberNumber: { $regex: searchTerm, $options: 'i' } },
           // ❌ REMOVED: rollNumber from search
-          { vanshaGenerationNumber: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-          { familyNumber: { $regex: search, $options: 'i' } },
-          { citizenshipNumber: { $regex: search, $options: 'i' } },
-          { houseNumber: { $regex: search, $options: 'i' } },
+          { vanshaGenerationNumber: { $regex: searchTerm, $options: 'i' } },
+          { phone: { $regex: searchTerm, $options: 'i' } },
+          { email: { $regex: searchTerm, $options: 'i' } },
+          { familyNumber: { $regex: searchTerm, $options: 'i' } },
+          { citizenshipNumber: { $regex: searchTerm, $options: 'i' } },
+          { houseNumber: { $regex: searchTerm, $options: 'i' } },
         ],
       };
     }
@@ -1629,15 +1637,49 @@ export const getMembers = async (req, res) => {
     if (district) query.district = district;
     if (province) query.province = province;
 
-    if (house) {
-      const familiesInHouse = await Family.find({ house }).distinct('_id');
-      query.family = { $in: familiesInHouse };
+    const familyIds = await authorizedFamilyIds(req.user);
+    if (familyIds !== null) {
+      if (family && !familyIds.includes(String(family))) {
+        return res.status(403).json({ message: 'You do not have access to this family.' });
+      }
+      if (family) query.family = family;
+      else query.family = { $in: familyIds };
     }
 
+    if (hideSpouses === 'true') {
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { gender: { $ne: 'female' } },
+            { spouse: null, husband: null, wife: null },
+          ],
+        },
+      ];
+    }
+
+    if (house) {
+      const familiesInHouse = await Family.find({ house }).distinct('_id');
+      const visibleFamilies = familyIds === null
+        ? familiesInHouse
+        : familiesInHouse.filter((id) => familyIds.includes(String(id)));
+      query.family = { $in: visibleFamilies };
+    }
+
+    const memberQuery = Member.find(query);
+    if (req.user.role === 'user') {
+      memberQuery.select('name surname photo memberNumber houseNumber familyNumber vanshaGenerationNumber generation lineageRole childBirthOrder gender phone email isAlive verificationStatus');
+    }
+    const relatedMemberMatch = familyIds === null ? undefined : { family: { $in: familyIds } };
+
     const [members, total] = await Promise.all([
-      Member.find(query)
+      memberQuery
         .populate('family', 'familyName familyNumber vanshaGenerationNumber')
-        .populate('father mother spouse', 'name photo memberNumber')
+        .populate({ path: 'father', select: 'name photo memberNumber', match: relatedMemberMatch })
+        .populate({ path: 'mother', select: 'name photo memberNumber', match: relatedMemberMatch })
+        .populate({ path: 'spouse', select: 'name photo memberNumber', match: relatedMemberMatch })
+        .populate({ path: 'grandfather', select: 'name photo memberNumber', match: relatedMemberMatch })
+        .populate({ path: 'grandmother', select: 'name photo memberNumber', match: relatedMemberMatch })
         // ❌ REMOVED: rollNumber from populate
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -1662,20 +1704,35 @@ export const getMembers = async (req, res) => {
 
 export const getMemberById = async (req, res) => {
   try {
+    const visibleFamilies = await authorizedFamilyIds(req.user);
+    const relatedMemberMatch = visibleFamilies === null ? undefined : { family: { $in: visibleFamilies } };
     const member = await Member.findById(req.params.id)
       .populate('family', 'familyName familyNumber vanshaGenerationNumber clan')
-      .populate(
-        'father mother husband wife spouse grandfather grandmother guardian fatherInLaw motherInLaw',
-        'name photo memberNumber'
-        // ❌ REMOVED: rollNumber from populate
-      )
-      .populate(
-        'sons daughters elderBrothers youngerBrothers elderSisters youngerSisters grandsons granddaughters sonInLaw daughterInLaw',
-        'name photo memberNumber'
-        // ❌ REMOVED: rollNumber from populate
-      );
+      .populate({ path: 'father', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'mother', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'husband', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'wife', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'spouse', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'grandfather', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'grandmother', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'guardian', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'fatherInLaw', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'motherInLaw', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'sons', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'daughters', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'elderBrothers', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'youngerBrothers', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'elderSisters', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'youngerSisters', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'grandsons', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'granddaughters', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'sonInLaw', select: 'name photo memberNumber', match: relatedMemberMatch })
+      .populate({ path: 'daughterInLaw', select: 'name photo memberNumber', match: relatedMemberMatch });
 
     if (!member) {
+      return res.status(404).json({ message: 'Member not found' });
+    }
+    if (visibleFamilies !== null && !visibleFamilies.includes(String(member.family?._id ?? member.family))) {
       return res.status(404).json({ message: 'Member not found' });
     }
 
@@ -1698,7 +1755,8 @@ export const getMemberById = async (req, res) => {
         { relatedMember: member._id },
       ],
       isActive: true,
-    }).populate('member relatedMember');
+    }).populate({ path: 'member', select: 'name photo memberNumber family', match: relatedMemberMatch })
+      .populate({ path: 'relatedMember', select: 'name photo memberNumber family', match: relatedMemberMatch });
 
     res.json({
       ...memberObj,
@@ -1708,6 +1766,72 @@ export const getMemberById = async (req, res) => {
     console.error('getMemberById Error:', error);
     res.status(500).json({ message: error.message });
   }
+};
+
+const validateSpouseReference = async (spouseId, currentMemberId = null) => {
+  if (!spouseId) return null;
+
+  if (currentMemberId && String(spouseId) === String(currentMemberId)) {
+    return { status: 400, message: 'A member cannot be their own spouse.' };
+  }
+
+  const spouse = await Member.findById(spouseId).select('_id spouse husband wife');
+  if (!spouse) {
+    return { status: 404, message: 'Selected spouse was not found.' };
+  }
+
+  const currentId = currentMemberId ? String(currentMemberId) : null;
+  const existingPartnerIds = [spouse.spouse, spouse.husband, spouse.wife]
+    .map((reference) => String(reference?._id ?? reference ?? ''))
+    .filter(Boolean);
+  if (existingPartnerIds.some((id) => id !== currentId)) {
+    return {
+      status: 409,
+      message: 'Selected spouse is already linked to another member.',
+    };
+  }
+
+  const reverseRelationship = await Member.findOne({
+    ...(currentMemberId ? { _id: { $ne: currentMemberId } } : {}),
+    $or: [
+      { spouse: spouse._id },
+      { husband: spouse._id },
+      { wife: spouse._id },
+    ],
+  }).select('_id');
+
+  if (reverseRelationship) {
+    return {
+      status: 409,
+      message: 'Selected spouse is already linked to another member.',
+    };
+  }
+
+  return null;
+};
+
+const validateRelationshipFamilyAccess = async (data, user) => {
+  const visibleFamilies = await authorizedFamilyIds(user);
+  if (visibleFamilies === null) return true;
+
+  const relationshipFields = [
+    'father', 'mother', 'husband', 'wife', 'spouse', 'grandfather', 'grandmother',
+    'guardian', 'fatherInLaw', 'motherInLaw', 'sons', 'daughters',
+    'elderBrothers', 'youngerBrothers', 'elderSisters', 'youngerSisters',
+    'grandsons', 'granddaughters', 'sonInLaw', 'daughterInLaw',
+  ];
+  const relatedIds = [...new Set(relationshipFields.flatMap((field) => {
+    const value = data[field];
+    return (Array.isArray(value) ? value : [value])
+      .filter(Boolean)
+      .map((relatedMember) => String(relatedMember?._id ?? relatedMember));
+  }))];
+  if (!relatedIds.length) return true;
+
+  const relatedMembers = await Member.find({ _id: { $in: relatedIds } }).select('family').lean();
+  return relatedMembers.every((relatedMember) =>
+    relatedMember.family && visibleFamilies.includes(String(relatedMember.family))
+  );
 };
 
 // ⭐ UPDATED: createMember - removed rollNumber
@@ -1739,6 +1863,10 @@ export const createMember = async (req, res) => {
         message: 'Family not found. Please select a valid family.',
       });
     }
+    const visibleFamilies = await authorizedFamilyIds(req.user);
+    if (visibleFamilies !== null && !visibleFamilies.includes(String(family._id))) {
+      return res.status(403).json({ message: 'You do not have permission to add members to this family.' });
+    }
 
     // Check if family is closed
     if (family.status === 'closed') {
@@ -1758,6 +1886,15 @@ export const createMember = async (req, res) => {
 
     // Clean array fields
     const cleanedBody = cleanArrayFields(body);
+    if (!await validateRelationshipFamilyAccess(cleanedBody, req.user)) {
+      return res.status(403).json({ message: 'You do not have permission to link a member outside your assigned families.' });
+    }
+    if (cleanedBody.spouse) {
+      const spouseError = await validateSpouseReference(cleanedBody.spouse);
+      if (spouseError) {
+        return res.status(spouseError.status).json({ success: false, message: spouseError.message });
+      }
+    }
 
     // ⭐ UPDATED: Generate member number in M0001 format (no rollNumber)
     const memberNumber = await getNextMemberNumber();
@@ -1766,7 +1903,6 @@ export const createMember = async (req, res) => {
       ...cleanedBody,
       memberNumber, // M0001, M0002, etc.
       // ❌ REMOVED: rollNumber
-      vanshaGenerationNumber: family.vanshaGenerationNumber || null,
       family: familyId,
       photo: files.photo?.[0]?.path || null,
       citizenshipFront: files.citizenshipFront?.[0]?.path || null,
@@ -1809,8 +1945,8 @@ export const createMember = async (req, res) => {
     });
     await notification.save();
 
-    io.emit('member:created', populatedMember);
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('member:created', populatedMember);
+    io.to('role:admin').emit('notification:new', notification);
 
     res.status(201).json(populatedMember);
   } catch (error) {
@@ -1828,6 +1964,10 @@ export const updateMember = async (req, res) => {
   try {
     const member = await Member.findById(req.params.id);
     if (!member) {
+      return res.status(404).json({ message: 'Member not found' });
+    }
+    const visibleFamilies = await authorizedFamilyIds(req.user);
+    if (visibleFamilies !== null && !visibleFamilies.includes(String(member.family))) {
       return res.status(404).json({ message: 'Member not found' });
     }
 
@@ -1852,7 +1992,13 @@ export const updateMember = async (req, res) => {
           });
         }
         body.family = familyId;
+        if (visibleFamilies !== null && !visibleFamilies.includes(String(familyId))) {
+          return res.status(403).json({ message: 'You do not have permission to move members into this family.' });
+        }
       }
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'spouse') && !body.spouse) {
+      body.spouse = null;
     }
 
     // Check if current family is closed
@@ -1873,6 +2019,15 @@ export const updateMember = async (req, res) => {
 
     // Clean array fields
     const cleanedBody = cleanArrayFields(body);
+    if (!await validateRelationshipFamilyAccess(cleanedBody, req.user)) {
+      return res.status(403).json({ message: 'You do not have permission to link a member outside your assigned families.' });
+    }
+    if (cleanedBody.spouse) {
+      const spouseError = await validateSpouseReference(cleanedBody.spouse, member._id);
+      if (spouseError) {
+        return res.status(spouseError.status).json({ success: false, message: spouseError.message });
+      }
+    }
 
     // Delete old Cloudinary images if new ones are uploaded
     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
@@ -1945,8 +2100,8 @@ export const updateMember = async (req, res) => {
 
     await notification.save();
 
-    io.emit("member:updated", updatedMember);
-    io.emit("notification:new", notification);
+    io.to('role:admin').emit("member:updated", updatedMember);
+    io.to('role:admin').emit("notification:new", notification);
 
     res.json(updatedMember);
   } catch (error) {
@@ -1970,6 +2125,10 @@ export const deleteMember = async (req, res) => {
   try {
     const member = await Member.findById(req.params.id);
     if (!member) {
+      return res.status(404).json({ message: 'Member not found' });
+    }
+    const visibleFamilies = await authorizedFamilyIds(req.user);
+    if (visibleFamilies !== null && !visibleFamilies.includes(String(member.family))) {
       return res.status(404).json({ message: 'Member not found' });
     }
 
@@ -2014,8 +2173,8 @@ export const deleteMember = async (req, res) => {
     });
     await notification.save();
 
-    io.emit('member:deleted', { id: req.params.id });
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('member:deleted', { id: req.params.id });
+    io.to('role:admin').emit('notification:new', notification);
 
     res.json({ message: 'Member deleted successfully' });
   } catch (error) {
@@ -2031,8 +2190,10 @@ export const searchMembers = async (req, res) => {
       return res.status(400).json({ message: 'Search query is required' });
     }
 
+    const familyIds = await authorizedFamilyIds(req.user);
     const members = await Member.find({
       $text: { $search: query },
+      ...(familyIds !== null ? { family: { $in: familyIds } } : {}),
     })
     .populate('family', 'familyName familyNumber')
     .sort({ score: { $meta: 'textScore' } })
@@ -2048,6 +2209,10 @@ export const searchMembers = async (req, res) => {
 export const getMembersByFamily = async (req, res) => {
   try {
     const { familyId } = req.params;
+    const visibleFamilies = await authorizedFamilyIds(req.user);
+    if (visibleFamilies !== null && !visibleFamilies.includes(String(familyId))) {
+      return res.status(404).json({ message: 'Family not found' });
+    }
     
     const family = await Family.findById(familyId);
     if (!family) {
@@ -2078,19 +2243,25 @@ export const getMembersByFamily = async (req, res) => {
 
 export const getMemberStats = async (req, res) => {
   try {
+    const visibleFamilies = await authorizedFamilyIds(req.user);
+    const match = visibleFamilies === null ? {} : { family: { $in: visibleFamilies } };
     const [total, byGender, byStatus, byGeneration, byVansha] = await Promise.all([
-      Member.countDocuments(),
+      Member.countDocuments(match),
       Member.aggregate([
+        { $match: match },
         { $group: { _id: '$gender', count: { $sum: 1 } } },
       ]),
       Member.aggregate([
+        { $match: match },
         { $group: { _id: '$isAlive', count: { $sum: 1 } } },
       ]),
       Member.aggregate([
+        { $match: match },
         { $group: { _id: '$generation', count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
       ]),
       Member.aggregate([
+        { $match: match },
         { $group: { _id: '$vanshaGenerationNumber', count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
         { $limit: 20 },

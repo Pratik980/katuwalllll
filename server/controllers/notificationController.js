@@ -56,7 +56,7 @@ export const markAsRead = async (req, res) => {
     notification.readAt = new Date();
     await notification.save();
 
-    io.emit('notification:read', notification);
+    io.to('role:admin').emit('notification:read', notification);
 
     res.json(notification);
   } catch (error) {
@@ -74,7 +74,7 @@ export const markAllAsRead = async (req, res) => {
       }
     );
 
-    io.emit('notification:all_read');
+    io.to('role:admin').emit('notification:all_read');
 
     res.json({ message: 'All notifications marked as read' });
   } catch (error) {
@@ -91,7 +91,7 @@ export const deleteNotification = async (req, res) => {
 
     await notification.deleteOne();
 
-    io.emit('notification:deleted', { id: req.params.id });
+    io.to('role:admin').emit('notification:deleted', { id: req.params.id });
 
     res.json({ message: 'Notification deleted successfully' });
   } catch (error) {
@@ -122,7 +122,7 @@ export const createNotification = async (req, res) => {
 
     await notification.save();
 
-    io.emit('notification:new', notification);
+    io.to('role:admin').emit('notification:new', notification);
 
     res.status(201).json(notification);
   } catch (error) {
