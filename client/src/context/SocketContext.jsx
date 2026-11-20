@@ -23,14 +23,15 @@ export const SocketProvider = ({ children }) => {
   const userId = user?.id || null;
 
   useEffect(() => {
-    if (loading || !userId) return undefined;
+    const socketUrl = import.meta.env.VITE_SOCKET_URL;
+    if (loading || !userId || !socketUrl) return undefined;
 
-    const socketInstance = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
-      transports: ['websocket'],
+    const socketInstance = io(socketUrl, {
+      transports: ['websocket', 'polling'],
       withCredentials: true,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 2000,
     });
 
     socketInstance.on('connect', () => {

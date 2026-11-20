@@ -96,6 +96,10 @@ const isOriginAllowed = (origin) => {
   const normalized = normalizeOrigin(origin);
   if (!normalized) return false;
   if (allowedOrigins.has(normalized)) return true;
+  try {
+    const url = new URL(normalized);
+    if (url.hostname.endsWith('.vercel.app')) return true;
+  } catch {}
   return process.env.NODE_ENV !== 'production' && isLoopbackOrigin(normalized);
 };
 
