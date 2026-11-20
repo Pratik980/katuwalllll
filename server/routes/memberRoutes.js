@@ -9,30 +9,47 @@ import {
   searchMembers,
   getMembersByFamily,
   getMemberStats,
+  getMemberOptions,
+  updateVerification,
 } from '../controllers/memberController.js';
-import { validate, memberValidation } from '../middlewares/validation.js';
+import { validate, memberValidation, validateObjectId } from '../middlewares/validation.js';
 import { uploadSinglePhoto, handleUpload } from '../middlewares/upload.js';
-import { rateLimit } from '../middlewares/rateLimit.js';
-import { requireFamilyAccess, requireMemberFamilyAccess, requireRole } from '../middlewares/authentication.js';
+import {
+  authenticate,
+  requireCsrf,
+  requireRole,
+  requireFamilyAccess,
+  requireMemberFamilyAccess,
+} from '../middlewares/authentication.js';
 
 const router = express.Router();
 
-// Apply rate limiting to all member routes
-router.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-
 // GET routes
 router.get('/', getMembers);
-router.get('/stats', requireRole('admin', 'staff'), getMemberStats);
+router.get('/stats', getMemberStats);
 router.get('/search', searchMembers);
-router.get('/family/:familyId', requireFamilyAccess, getMembersByFamily);
-router.get('/:id', requireMemberFamilyAccess, getMemberById);
+router.get('/options', getMemberOptions);
+router.get(
+  '/family/:familyId',
+  validateObjectId('familyId', 'Family'),
+  requireFamilyAccess,
+  getMembersByFamily
+);
+router.get(
+  '/:id',
+  validateObjectId('id', 'Member'),
+  requireMemberFamilyAccess,
+  getMemberById
+);
 
 // POST routes with file upload
 router.post(
   '/',
+  authenticate,
+  requireCsrf,
   requireRole('admin', 'staff'),
-  requireFamilyAccess,
   handleUpload(uploadSinglePhoto),
+  requireFamilyAccess,
   validate(memberValidation),
   createMember
 );
@@ -40,14 +57,37 @@ router.post(
 // PUT routes with file upload
 router.put(
   '/:id',
+  authenticate,
+  requireCsrf,
   requireRole('admin', 'staff'),
-  requireMemberFamilyAccess,
+  validateObjectId('id', 'Member'),
   handleUpload(uploadSinglePhoto),
+  requireFamilyAccess,
+  requireMemberFamilyAccess,
   validate(memberValidation),
   updateMember
 );
 
+// Verification is its own small request, separate from the member form
+router.put(
+  '/:id/verification',
+  authenticate,
+  requireCsrf,
+  requireRole('admin', 'staff'),
+  validateObjectId('id', 'Member'),
+  requireMemberFamilyAccess,
+  updateVerification
+);
+
 // DELETE routes
-router.delete('/:id', requireRole('admin', 'staff'), requireMemberFamilyAccess, deleteMember);
+router.delete(
+  '/:id',
+  authenticate,
+  requireCsrf,
+  requireRole('admin'),
+  validateObjectId('id', 'Member'),
+  requireMemberFamilyAccess,
+  deleteMember
+);
 
 export default router;

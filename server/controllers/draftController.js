@@ -1,12 +1,29 @@
-// server/controllers/draftController.js
+
 import Draft from '../models/Draft.js';
+
+const DRAFT_WRITABLE_FIELDS = ['module', 'data'];
+
+const pickFields = (source, fields) => {
+  const picked = {};
+  fields.forEach((field) => {
+    if (source && Object.prototype.hasOwnProperty.call(source, field)) {
+      picked[field] = source[field];
+    }
+  });
+  return picked;
+};
+
+const ownedQuery = (req, extra = {}) => {
+  if (req.user?.role === 'admin') return extra;
+  return { ...extra, createdBy: req.user?._id || { $in: [] } };
+};
 
 export const getDrafts = async (req, res) => {
   try {
     const { module, status, page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
 
-    let query = {};
+    let query = ownedQuery(req);
     if (module) query.module = module;
     if (status) query.status = status;
 
@@ -28,29 +45,26 @@ export const getDrafts = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 export const getDraftById = async (req, res) => {
   try {
-    const draft = await Draft.findById(req.params.id);
+    const draft = await Draft.findOne(ownedQuery(req, { _id: req.params.id }));
     if (!draft) {
       return res.status(404).json({ message: 'Draft not found' });
     }
     res.json(draft);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 export const createDraft = async (req, res) => {
   try {
-    const { module, data } = req.body;
-
     const draft = new Draft({
-      module,
-      data,
+      ...pickFields(req.body, DRAFT_WRITABLE_FIELDS),
       status: 'draft',
       createdBy: req.user?._id || null,
       updatedBy: req.user?._id || null,
@@ -66,21 +80,18 @@ export const createDraft = async (req, res) => {
 
 export const updateDraft = async (req, res) => {
   try {
-    const draft = await Draft.findById(req.params.id);
-    if (!draft) {
+    const updatedDraft = await Draft.findOneAndUpdate(
+      ownedQuery(req, { _id: req.params.id }),
+      {
+        ...pickFields(req.body, DRAFT_WRITABLE_FIELDS),
+        updatedBy: req.user?._id || null,
+      },
+      { returnDocument: 'after', runValidators: true }
+    );
+
+    if (!updatedDraft) {
       return res.status(404).json({ message: 'Draft not found' });
     }
-
-    const updateData = {
-      ...req.body,
-      updatedBy: req.user?._id || null,
-    };
-
-    const updatedDraft = await Draft.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    );
 
     res.json(updatedDraft);
   } catch (error) {
@@ -90,22 +101,20 @@ export const updateDraft = async (req, res) => {
 
 export const deleteDraft = async (req, res) => {
   try {
-    const draft = await Draft.findById(req.params.id);
+    const draft = await Draft.findOneAndDelete(ownedQuery(req, { _id: req.params.id }));
     if (!draft) {
       return res.status(404).json({ message: 'Draft not found' });
     }
 
-    await draft.deleteOne();
-
     res.json({ message: 'Draft deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 export const submitDraft = async (req, res) => {
   try {
-    const draft = await Draft.findById(req.params.id);
+    const draft = await Draft.findOne(ownedQuery(req, { _id: req.params.id }));
     if (!draft) {
       return res.status(404).json({ message: 'Draft not found' });
     }
@@ -114,11 +123,11 @@ export const submitDraft = async (req, res) => {
     draft.updatedBy = req.user?._id || null;
     await draft.save();
 
-    res.json({ 
+    res.json({
       message: 'Draft submitted successfully',
       draft,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

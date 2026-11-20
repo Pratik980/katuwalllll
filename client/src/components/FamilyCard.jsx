@@ -157,7 +157,7 @@
 //                           src={member.photo} 
 //                           alt={member.name}
 //                           className="w-full h-full object-cover"
-//                           onError={(e) => { e.target.src = '/default-avatar.png'; }}
+//                           onError={(e) => { e.target.src = '/default-avatar.svg'; }}
 //                         />
 //                       ) : (
 //                         <div className="w-full h-full bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center">
@@ -390,7 +390,7 @@
 // //                           src={member.photo} 
 // //                           alt={member.name}
 // //                           className="w-full h-full object-cover"
-// //                           onError={(e) => { e.target.src = '/default-avatar.png'; }}
+// //                           onError={(e) => { e.target.src = '/default-avatar.svg'; }}
 // //                         />
 // //                       ) : (
 // //                         <div className="w-full h-full bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center">
@@ -625,7 +625,7 @@ const FamilyCard = ({
                           src={member.photo} 
                           alt={member.name}
                           className="w-full h-full object-cover"
-                          onError={(e) => { e.target.src = '/default-avatar.png'; }}
+                          onError={(e) => { e.target.src = '/default-avatar.svg'; }}
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center">

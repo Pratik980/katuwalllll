@@ -1,5 +1,6 @@
 // src/components/settings/ReportSettings.jsx
 import { useState, useEffect } from 'react';
+import Button from '../Button';
 import Toggle from '../Toggle';
 import { useMutation } from '@tanstack/react-query';
 import { updateReportSettings } from '../../api/settings';

@@ -37,10 +37,6 @@ const AccountProfile = () => {
     savePhoto.mutate(body);
   };
 
-  const setPreference = (value) => {
-    setLanguage(value);
-  };
-
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <header>
@@ -64,9 +60,9 @@ const AccountProfile = () => {
           </label>
           <label className="block text-sm font-medium text-slate-700">
             {t('preferred_language')}
-            <select value={language} onChange={(event) => setPreference(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5">
-              <option value="en">English</option>
-              <option value="ne">नेपाली</option>
+            <select value={language} onChange={(event) => setLanguage(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5">
+              <option value="en">{t('english')}</option>
+              <option value="ne">{t('nepali')}</option>
             </select>
           </label>
           <button disabled={saveProfile.isPending} className="rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-900 disabled:opacity-60">

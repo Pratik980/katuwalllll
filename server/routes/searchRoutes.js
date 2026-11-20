@@ -1,4 +1,5 @@
 import express from 'express';
+import { requireFamilyAccess } from '../middlewares/authentication.js';
 import {
   globalSearch,
   searchMembers,
@@ -7,8 +8,8 @@ import {
 
 const router = express.Router();
 
-router.get('/', globalSearch);
-router.get('/members', searchMembers);
-router.get('/families', searchFamilies);
+router.get('/', requireFamilyAccess, globalSearch);
+router.get('/members', requireFamilyAccess, searchMembers);
+router.get('/families', requireFamilyAccess, searchFamilies);
 
 export default router;

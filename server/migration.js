@@ -49,7 +49,7 @@ const migrate = async () => {
         'rollNumber',
         { $inc: { seq: 1 } },
         {
-          new: true,
+          returnDocument: 'after',
           upsert: true
         }
       );

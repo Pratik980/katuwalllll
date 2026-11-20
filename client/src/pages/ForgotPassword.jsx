@@ -29,6 +29,7 @@ const ForgotPassword = () => {
           purpose: 'password_reset',
         });
         setResetToken(response.data.resetToken);
+        setMessage(response.data.message || '');
         setStep('reset');
       } else {
         if (form.password !== form.confirmPassword) {
@@ -45,6 +46,23 @@ const ForgotPassword = () => {
       }
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Password recovery could not be completed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendCode = async () => {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await api.post('/auth/resend-otp', {
+        email: form.email,
+        purpose: 'password_reset',
+      });
+      setMessage(response.data?.message || 'A new verification code has been sent.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Could not resend the verification code.');
     } finally {
       setBusy(false);
     }
@@ -87,6 +105,11 @@ const ForgotPassword = () => {
             <button disabled={busy} className="w-full rounded-lg bg-emerald-800 px-4 py-2.5 font-medium text-white hover:bg-emerald-900 disabled:opacity-60">
               {busy ? t('please_wait') : step === 'email' ? t('send_verification_code') : step === 'verify' ? t('verify_code') : t('set_new_password')}
             </button>
+            {step === 'verify' && (
+              <button type="button" onClick={resendCode} disabled={busy} className="w-full text-sm font-medium text-emerald-700 hover:underline disabled:opacity-60">
+                {t('resend_code') || 'Resend verification code'}
+              </button>
+            )}
           </form>
         )}
         {step === 'complete' && <Link to="/login" className="mt-5 inline-block font-medium text-emerald-700 hover:underline">{t('return_to_sign_in')}</Link>}

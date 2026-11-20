@@ -1,9 +1,41 @@
-// controllers/houseController.js
+
+import mongoose from 'mongoose';
 import House from '../models/House.js';
 import Family from '../models/Family.js';
 import Member from '../models/Member.js';
 import { io } from '../server.js';
 import Notification from '../models/Notification.js';
+import { containsText } from '../utils/text.js';
+import { authorizedFamilyIds } from '../middlewares/authentication.js';
+
+const HOUSE_WRITABLE_FIELDS = [
+  'houseNumber', 'houseName', 'address', 'wardNumber', 'toleVillage', 'municipality',
+  'district', 'province', 'country', 'description', 'status',
+];
+
+const pickFields = (source, fields) => {
+  const picked = {};
+  fields.forEach((field) => {
+    if (source && Object.prototype.hasOwnProperty.call(source, field)) {
+      picked[field] = source[field];
+    }
+  });
+  return picked;
+};
+
+const objectIds = (ids) => ids
+  .map((id) => String(id))
+  .filter((id) => /^[0-9a-fA-F]{24}$/.test(id))
+  .map((id) => new mongoose.Types.ObjectId(id));
+
+const houseScope = async (user) => {
+  const familyIds = await authorizedFamilyIds(user);
+  if (familyIds === null) return { familyIds: null, houseIds: null };
+  const houseIds = familyIds.length
+    ? await Family.find({ _id: { $in: objectIds(familyIds) } }).distinct('house')
+    : [];
+  return { familyIds, houseIds: houseIds.map(String) };
+};
 
 export const getHouses = async (req, res) => {
   try {
@@ -12,28 +44,36 @@ export const getHouses = async (req, res) => {
 
     let query = {};
     if (search) {
+      const text = containsText(search);
       query = {
         $or: [
-          { houseNumber: { $regex: search, $options: 'i' } },
-          { houseName: { $regex: search, $options: 'i' } },
-          { address: { $regex: search, $options: 'i' } },
-          { district: { $regex: search, $options: 'i' } },
+          { houseNumber: text },
+          { houseName: text },
+          { address: text },
+          { district: text },
         ],
       };
     }
 
+    const scope = await houseScope(req.user);
+    const scopedQuery = scope.houseIds === null
+      ? query
+      : { ...query, _id: { $in: scope.houseIds } };
+
     const [houses, total] = await Promise.all([
-      House.find(query)
+      House.find(scopedQuery)
         .sort({ houseNumber: 1 })
         .skip(skip)
         .limit(parseInt(limit)),
-      House.countDocuments(query),
+      House.countDocuments(scopedQuery),
     ]);
 
-    // Get family counts for each house
     const housesWithCounts = await Promise.all(houses.map(async (house) => {
-      const familyCount = await Family.countDocuments({ house: house._id });
-      const memberCount = await Member.countDocuments({ family: { $in: await Family.find({ house: house._id }).distinct('_id') } });
+      const familyFilter = scope.houseIds === null
+        ? { house: house._id }
+        : { house: house._id, _id: { $in: objectIds(scope.familyIds) } };
+      const familyCount = await Family.countDocuments(familyFilter);
+      const memberCount = await Member.countDocuments({ family: { $in: await Family.find(familyFilter).distinct('_id') } });
       return {
         ...house.toObject(),
         familyCount,
@@ -52,7 +92,7 @@ export const getHouses = async (req, res) => {
     });
   } catch (error) {
     console.error('getHouses Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -63,7 +103,15 @@ export const getHouseById = async (req, res) => {
       return res.status(404).json({ message: 'House not found' });
     }
 
-    const families = await Family.find({ house: house._id })
+    const scope = await houseScope(req.user);
+    const familyFilter = scope.houseIds === null
+      ? { house: house._id }
+      : { house: house._id, _id: { $in: objectIds(scope.familyIds) } };
+    if (scope.houseIds !== null && !scope.houseIds.includes(String(house._id))) {
+      return res.status(404).json({ message: 'House not found' });
+    }
+
+    const families = await Family.find(familyFilter)
       .populate('familyHead', 'name memberNumber photo')
       .sort({ familyNumber: 1 });
 
@@ -79,14 +127,14 @@ export const getHouseById = async (req, res) => {
     });
   } catch (error) {
     console.error('getHouseById Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 export const createHouse = async (req, res) => {
   try {
     const houseData = {
-      ...req.body,
+      ...pickFields(req.body, HOUSE_WRITABLE_FIELDS),
       createdBy: req.user?._id || null,
       updatedBy: req.user?._id || null,
     };
@@ -103,8 +151,8 @@ export const createHouse = async (req, res) => {
     });
     await notification.save();
 
-    io.to('role:admin').emit('house:created', house);
-    io.to('role:admin').emit('notification:new', notification);
+    io.emit('house:created', house);
+    io.emit('notification:new', notification);
 
     res.status(201).json(house);
   } catch (error) {
@@ -126,10 +174,10 @@ export const updateHouse = async (req, res) => {
     const updatedHouse = await House.findByIdAndUpdate(
       req.params.id,
       {
-        ...req.body,
+        ...pickFields(req.body, HOUSE_WRITABLE_FIELDS),
         updatedBy: req.user?._id || null,
       },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     const notification = new Notification({
@@ -141,8 +189,8 @@ export const updateHouse = async (req, res) => {
     });
     await notification.save();
 
-    io.to('role:admin').emit('house:updated', updatedHouse);
-    io.to('role:admin').emit('notification:new', notification);
+    io.emit('house:updated', updatedHouse);
+    io.emit('notification:new', notification);
 
     res.json(updatedHouse);
   } catch (error) {
@@ -170,34 +218,39 @@ export const deleteHouse = async (req, res) => {
 
     await house.deleteOne();
 
-    io.to('role:admin').emit('house:deleted', { id: req.params.id });
+    io.emit('house:deleted', { id: req.params.id });
 
     res.json({ message: 'House deleted successfully' });
   } catch (error) {
     console.error('deleteHouse Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 export const getNextHouseNumber = async (req, res) => {
   try {
-    const houses = await House.find().select('houseNumber').lean();
-    const maxHouseNumber = houses.reduce(
-      (max, house) => Math.max(max, Number.parseInt(house.houseNumber, 10) || 0),
-      0
-    );
-    res.json({ nextHouseNumber: String(maxHouseNumber + 1) });
+    // House numbers are text, so the largest is found by number ("9" sorts after "10" as text)
+    const used = await House.find().distinct('houseNumber');
+    const largest = used.reduce((max, value) => {
+      const number = parseInt(value, 10);
+      return Number.isNaN(number) ? max : Math.max(max, number);
+    }, 0);
+    res.json({ nextHouseNumber: String(largest + 1) });
   } catch (error) {
     console.error('getNextHouseNumber Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 export const getHouseStats = async (req, res) => {
   try {
+    const scope = await houseScope(req.user);
+    const houseMatch = scope.houseIds === null ? {} : { _id: { $in: objectIds(scope.houseIds) } };
+    const familyMatch = scope.familyIds === null ? {} : { _id: { $in: objectIds(scope.familyIds) } };
     const [totalHouses, familyStats] = await Promise.all([
-      House.countDocuments(),
+      House.countDocuments(houseMatch),
       Family.aggregate([
+        ...(Object.keys(familyMatch).length ? [{ $match: familyMatch }] : []),
         {
           $group: {
             _id: '$house',
@@ -215,6 +268,6 @@ export const getHouseStats = async (req, res) => {
     });
   } catch (error) {
     console.error('getHouseStats Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

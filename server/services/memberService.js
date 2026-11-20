@@ -42,7 +42,7 @@ export const updateMemberWithRelationships = async (memberId, updateData, relati
     const member = await Member.findByIdAndUpdate(
       memberId,
       updateData,
-      { new: true, session, runValidators: true }
+      { returnDocument: 'after', session, runValidators: true }
     );
 
     if (!member) {

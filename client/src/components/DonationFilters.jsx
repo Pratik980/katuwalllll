@@ -193,7 +193,7 @@ import React, { useState } from 'react';
 import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useLanguage } from '../context/LanguageContext';
 
-const DonationFilters = ({ filters, onFilterChange, onSearch }) => {
+const DonationFilters = ({ filters, onFilterChange, onSearch, showAmountFilters = false }) => {
   const { t } = useLanguage();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [searchTerm, setSearchTerm] = useState(filters.search || '');
@@ -335,27 +335,29 @@ const DonationFilters = ({ filters, onFilterChange, onSearch }) => {
             </div>
 
             {/* Amount Range */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('amount_range') || 'Amount Range'}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  placeholder={t('min') || 'Min'}
-                  value={filters.minAmount || ''}
-                  onChange={(e) => handleFilterChange('minAmount', e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-gray-900"
-                />
-                <input
-                  type="number"
-                  placeholder={t('max') || 'Max'}
-                  value={filters.maxAmount || ''}
-                  onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-gray-900"
-                />
+            {showAmountFilters && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('amount_range') || 'Amount Range'}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder={t('min') || 'Min'}
+                    value={filters.minAmount || ''}
+                    onChange={(e) => handleFilterChange('minAmount', e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-gray-900"
+                  />
+                  <input
+                    type="number"
+                    placeholder={t('max') || 'Max'}
+                    value={filters.maxAmount || ''}
+                    onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-gray-900"
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="mt-4 flex justify-end">

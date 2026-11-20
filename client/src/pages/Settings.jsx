@@ -584,10 +584,21 @@
 // src/pages/Settings.jsx - WITHOUT THEME (Only Language)
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Button from '../components/Button';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { getSettings } from '../api/settings';
+import { getOrganization } from '../api/organization';
+import { getAppVersion } from '../api/system';
+import GeneralSettings from '../components/settings/GeneralSettings';
+import NotificationSettings from '../components/settings/NotificationSettings';
+import DocumentSettings from '../components/settings/DocumentSettings';
+import ReportSettings from '../components/settings/ReportSettings';
+import SystemSettings from '../components/settings/SystemSettings';
+import SecuritySettings from '../components/settings/SecuritySettings';
+import Backups from './Backups';
 import * as Icons from 'lucide-react';
 
 const Settings = () => {
@@ -596,9 +607,46 @@ const Settings = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
   const { language, setLanguage, t } = useLanguage();
+  const queryClient = useQueryClient();
+  const isAdmin = user?.role === 'admin';
+
+  const settingsQuery = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+    enabled: isAdmin,
+  });
+  const organizationQuery = useQuery({
+    queryKey: ['organization'],
+    queryFn: getOrganization,
+    enabled: isAdmin,
+    retry: false,
+  });
+  const versionQuery = useQuery({
+    queryKey: ['app-version'],
+    queryFn: getAppVersion,
+    enabled: activeSection === 'about',
+    retry: false,
+  });
+
+  const settings = settingsQuery.data?.settings || {};
+  const organization = organizationQuery.data || null;
+  const data = { settings, organization };
+  const refreshSettings = () => {
+    queryClient.invalidateQueries({ queryKey: ['settings'] });
+    queryClient.invalidateQueries({ queryKey: ['organization'] });
+  };
 
   const navItems = [
     { id: 'language', label: t('language') || 'Language', icon: Icons.Languages },
+    ...(isAdmin ? [
+      { id: 'general', label: t('general') || 'General', icon: Icons.Building2 },
+      { id: 'notifications', label: t('notifications') || 'Notifications', icon: Icons.Bell },
+      { id: 'documents', label: t('documents') || 'Documents', icon: Icons.FileText },
+      { id: 'reports', label: t('reports') || 'Reports', icon: Icons.BarChart3 },
+      { id: 'system', label: t('system') || 'System', icon: Icons.Settings },
+      { id: 'security', label: t('security') || 'Security', icon: Icons.Shield },
+      { id: 'backups', label: t('backups') || 'Backups', icon: Icons.Archive },
+    ] : []),
     { id: 'account', label: t('account') || 'Account', icon: Icons.UserRound },
     { id: 'about', label: t('about') || 'About', icon: Icons.Info },
   ];
@@ -625,6 +673,27 @@ const Settings = () => {
 
   const renderSection = () => {
     switch (activeSection) {
+      case 'general':
+        return <GeneralSettings data={data} onDataChange={refreshSettings} />;
+
+      case 'notifications':
+        return <NotificationSettings data={data} onDataChange={refreshSettings} />;
+
+      case 'documents':
+        return <DocumentSettings data={data} onDataChange={refreshSettings} />;
+
+      case 'reports':
+        return <ReportSettings data={data} onDataChange={refreshSettings} />;
+
+      case 'system':
+        return <SystemSettings data={data} onDataChange={refreshSettings} />;
+
+      case 'security':
+        return <SecuritySettings data={data} onDataChange={refreshSettings} />;
+
+      case 'backups':
+        return <Backups />;
+
       case 'language':
         return (
           <div className="space-y-6">
@@ -717,7 +786,7 @@ const Settings = () => {
               </div>
               <h2 className="text-2xl font-bold text-gray-900">Katuwal Bansha</h2>
               <p className="text-gray-600">{t('app_description') || 'Family Tree Management System'}</p>
-              <p className="text-sm text-gray-500 mt-2">Version 1.0.0</p>
+              <p className="text-sm text-gray-500 mt-2">Version {versionQuery.data || '1.0.0'}</p>
               <p className="text-sm text-gray-500">© 2026 NDS Software</p>
             </div>
           </div>
@@ -781,16 +850,18 @@ const Settings = () => {
           </div>
         </div>
 
-        <div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white p-4 shadow-lg">
-          <div className="max-w-4xl mx-auto flex flex-wrap justify-end gap-3">
-            <Button
-              onClick={handleSave}
-              disabled={isLoading || !hasUnsavedChanges}
-            >
-              {isLoading ? (t('saving') || 'Saving...') : (t('save_changes') || 'Save Changes')}
-            </Button>
+        {activeSection === 'language' && (
+          <div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white p-4 shadow-lg">
+            <div className="max-w-4xl mx-auto flex flex-wrap justify-end gap-3">
+              <Button
+                onClick={handleSave}
+                disabled={isLoading || !hasUnsavedChanges}
+              >
+                {isLoading ? (t('saving') || 'Saving...') : (t('save_changes') || 'Save Changes')}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

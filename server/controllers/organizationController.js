@@ -58,7 +58,7 @@ export const updateOrganization = async (req, res) => {
         logo: req.file?.path || organization.logo,
         updatedBy: req.user?._id || null,
       },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     io.to('role:admin').emit('organization:updated', updatedOrg);

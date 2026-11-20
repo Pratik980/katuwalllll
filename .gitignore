@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment files (never commit real credentials)
+.env
+.env.*
+!.env.example
+*.env.local
+
+# Scratch/secret-bearing exports
+copy.txt
+ru.txt
+file.txt
+nodemon
+server@1.0.0
+
+# Backups and duplicate worktree copies
+backups/
+_backup_*/
+**/katuwal/
+
+# Production build outputs
+dist/
+dist-ssr/
+build/
+*/dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary / testing
+.kilo/
+backups/
+*.pdf

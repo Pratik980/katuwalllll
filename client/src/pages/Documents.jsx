@@ -1,8 +1,9 @@
 // src/pages/Documents.jsx
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDocuments, uploadDocument, deleteDocument, verifyDocument } from '../api/documents';
+import { getDocuments, deleteDocument, verifyDocument } from '../api/documents';
 import { getMembers } from '../api/members';
+import { useAuth } from '../context/AuthContext';
 import Table from '../components/Table';
 import Button from '../components/Button';
 import Modal from '../components/Modal';
@@ -11,6 +12,8 @@ import { PlusIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outl
 import toast from 'react-hot-toast';
 
 const Documents = () => {
+  const { user } = useAuth();
+  const canManage = user?.role === 'admin';
   const [page, setPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState('');
@@ -67,13 +70,15 @@ const Documents = () => {
           <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
           <p className="text-gray-600">Manage all uploaded documents</p>
         </div>
-        <Button 
-          onClick={() => setIsModalOpen(true)} 
-          className="flex items-center shadow-lg shadow-green-200"
-        >
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Upload Document
-        </Button>
+        {canManage && (
+          <Button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center shadow-lg shadow-green-200"
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Upload Document
+          </Button>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -99,8 +104,8 @@ const Documents = () => {
           columns={columns}
           data={data?.data || []}
           loading={isLoading}
-          onDelete={handleDelete}
-          customActions={(item) => (
+          onDelete={canManage ? handleDelete : undefined}
+          customActions={canManage ? (item) => (
             <>
               {!item.isVerified && (
                 <button
@@ -112,7 +117,7 @@ const Documents = () => {
                 </button>
               )}
             </>
-          )}
+          ) : undefined}
           pagination={{
             currentPage: data?.pagination?.page || 1,
             totalPages: data?.pagination?.pages || 1,
@@ -121,20 +126,22 @@ const Documents = () => {
         />
       </div>
 
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Upload Document"
-        size="md"
-      >
-        <DocumentUpload
-          onSuccess={() => {
-            setIsModalOpen(false);
-            queryClient.invalidateQueries({ queryKey: ['documents'] });
-          }}
-          onCancel={() => setIsModalOpen(false)}
-        />
-      </Modal>
+      {canManage && (
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title="Upload Document"
+          size="md"
+        >
+          <DocumentUpload
+            onSuccess={() => {
+              setIsModalOpen(false);
+              queryClient.invalidateQueries({ queryKey: ['documents'] });
+            }}
+            onCancel={() => setIsModalOpen(false)}
+          />
+        </Modal>
+      )}
     </div>
   );
 };

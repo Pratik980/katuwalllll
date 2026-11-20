@@ -2,15 +2,21 @@ import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import AuthChallenge from '../models/AuthChallenge.js';
+import LoginActivity from '../models/LoginActivity.js';
 import User from '../models/User.js';
 import cloudinary from '../config/cloudinary.js';
-import { getJwtSecret } from '../middlewares/authentication.js';
-import { sendOtpEmail } from '../utils/authEmail.js';
+import { getJwtSecret, getOtpSecret } from '../middlewares/authentication.js';
+import { sendOtpEmail, sendPasswordResetConfirmationEmail } from '../utils/authEmail.js';
 import { io } from '../server.js';
 
 const OTP_LIFETIME_MS = 10 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 const SESSION_LIFETIME = '8h';
+const DEV_OTP_CODE = '123456';
+
+const generateOtpCode = () => (
+  process.env.NODE_ENV === 'production' ? String(randomInt(100000, 1_000_000)) : DEV_OTP_CODE
+);
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 const safeUser = (user) => ({
@@ -27,13 +33,27 @@ const safeUser = (user) => ({
   allowedFamilies: user.allowedFamilies || [],
 });
 
-const secretForOtp = () => process.env.AUTH_OTP_SECRET || getJwtSecret();
+const secretForOtp = () => getOtpSecret() || getJwtSecret();
 const hashOtp = (email, purpose, code) => createHmac('sha256', secretForOtp())
   .update(`${email}:${purpose}:${code}`)
   .digest('hex');
 const hashResetToken = (token) => createHmac('sha256', secretForOtp())
   .update(`password-reset:${token}`)
   .digest('hex');
+
+const recordLogin = async (req, user) => {
+  try {
+    await LoginActivity.create({
+      user: user._id,
+      email: user.email,
+      ip: req.ip || '',
+      userAgent: String(req.get('user-agent') || '').slice(0, 500),
+      success: true,
+    });
+  } catch (error) {
+    console.error('Login activity could not be recorded:', error.message);
+  }
+};
 
 const matchesHash = (provided, expected) => {
   const left = Buffer.from(String(provided || ''), 'hex');
@@ -107,7 +127,7 @@ export const signUp = async (req, res, next) => {
       return res.status(429).json({ message: 'Please wait one minute before requesting another verification code.' });
     }
 
-    const code = String(randomInt(100000, 1_000_000));
+    const code = generateOtpCode();
     const challenge = await AuthChallenge.findOneAndUpdate(
       { email, purpose: 'signup' },
       {
@@ -124,7 +144,7 @@ export const signUp = async (req, res, next) => {
           lastSentAt: new Date(),
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
     try {
@@ -135,7 +155,10 @@ export const signUp = async (req, res, next) => {
       return res.status(503).json({ message: 'Verification email could not be sent. Please try again later.' });
     }
 
-    res.status(202).json({ message: 'A verification code has been sent to your email address.' });
+    res.status(202).json({
+      message: 'A verification code has been sent to your email address.',
+      ...(process.env.NODE_ENV !== 'production' ? { devCode: code } : {}),
+    });
   } catch (error) {
     next(error);
   }
@@ -180,6 +203,7 @@ export const verifyOtp = async (req, res, next) => {
       });
       await AuthChallenge.deleteOne({ _id: challenge._id });
       const csrfToken = issueSession(user, res);
+      await recordLogin(req, user);
       return res.status(201).json({ user: safeUser(user), csrfToken });
     }
 
@@ -212,7 +236,51 @@ export const login = async (req, res, next) => {
     }
 
     const csrfToken = issueSession(user, res);
+    await recordLogin(req, user);
     res.json({ user: safeUser(user), csrfToken });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+export const resendOtp = async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    const purpose = req.body.purpose;
+    if (!validEmail(email) || !['signup', 'password_reset'].includes(purpose)) {
+      return invalidInput(res, 'Enter a valid email address and verification purpose.');
+    }
+
+    const challenge = await AuthChallenge.findOne({ email, purpose });
+    if (!challenge || challenge.expiresAt <= new Date() || challenge.verifiedAt) {
+      if (purpose === 'password_reset') {
+        return res.status(202).json({ message: 'If a pending verification exists, a new code will be sent shortly.' });
+      }
+      return res.status(400).json({ message: 'No pending verification found. Please start registration again.' });
+    }
+    if (challenge.lastSentAt && Date.now() - challenge.lastSentAt.getTime() < 60_000) {
+      return res.status(429).json({ message: 'Please wait one minute before requesting another verification code.' });
+    }
+
+    const code = purpose === 'signup' ? generateOtpCode() : String(randomInt(100000, 1_000_000));
+    challenge.codeHash = hashOtp(email, purpose, code);
+    challenge.attempts = 0;
+    challenge.lastSentAt = new Date();
+    challenge.expiresAt = new Date(Date.now() + OTP_LIFETIME_MS);
+    await challenge.save();
+
+    try {
+      await sendOtpEmail({ email, name: challenge.name || '', code, purpose });
+    } catch (error) {
+      console.error('Resend OTP email failed:', error.message);
+      return res.status(503).json({ message: 'Verification email could not be sent. Please try again later.' });
+    }
+
+    res.status(202).json({
+      message: 'A new verification code has been sent to your email address.',
+      ...(purpose === 'signup' && process.env.NODE_ENV !== 'production' ? { devCode: code } : {}),
+    });
   } catch (error) {
     next(error);
   }
@@ -247,7 +315,7 @@ export const forgotPassword = async (req, res, next) => {
             lastSentAt: new Date(),
           },
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
       try {
         await sendOtpEmail({ email, name: user.name, code, purpose: 'password_reset' });
@@ -293,6 +361,7 @@ export const resetPassword = async (req, res, next) => {
     io.in(`user:${user._id}`).disconnectSockets(true);
     await AuthChallenge.deleteOne({ _id: challenge._id });
     clearSession(res);
+    try { await sendPasswordResetConfirmationEmail({ email: user.email, name: user.name }); } catch (error) { console.error('Password reset confirmation email failed:', error.message); }
     res.json({ message: 'Your password has been changed. Sign in with your new password.' });
   } catch (error) {
     next(error);
@@ -319,6 +388,7 @@ export const changePassword = async (req, res, next) => {
     await user.save();
     io.in(`user:${user._id}`).disconnectSockets(true);
     clearSession(res);
+    try { await sendPasswordResetConfirmationEmail({ email: user.email, name: user.name }); } catch (error) { console.error('Password change confirmation email failed:', error.message); }
     res.json({ message: 'Password changed. Please sign in again.' });
   } catch (error) {
     next(error);
@@ -329,9 +399,15 @@ export const getCurrentUser = (req, res) => {
   res.json({ user: safeUser(req.user) });
 };
 
-export const logout = (req, res) => {
-  clearSession(res);
-  res.status(204).end();
+export const logout = async (req, res, next) => {
+  try {
+    await User.updateOne({ _id: req.user._id }, { $inc: { tokenVersion: 1 } });
+    io.in(`user:${req.user._id}`).disconnectSockets(true);
+    clearSession(res);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const updateCurrentUser = async (req, res, next) => {
@@ -353,7 +429,7 @@ export const updateCurrentUser = async (req, res, next) => {
       }
       updates.preferredLanguage = req.body.preferredLanguage;
     }
-    const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true });
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { returnDocument: 'after' });
     res.json({ user: safeUser(user) });
   } catch (error) {
     next(error);

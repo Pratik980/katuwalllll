@@ -2,16 +2,19 @@
 import Document from '../models/Document.js';
 import Member from '../models/Member.js';
 import Notification from '../models/Notification.js';
-import cloudinary from '../config/cloudinary.js';
 import { io } from '../server.js';
+import { deleteAsset } from '../utils/cloudinaryAssets.js';
 
 export const getDocuments = async (req, res) => {
   try {
     const { memberId, documentType, page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
 
-    let query = {};
-    if (memberId) query.member = memberId;
+    const query = { ...req.documentQuery };
+    if (memberId) {
+      if (req.user?.role === 'admin') query.member = memberId;
+      else query.$and = [{ member: memberId }];
+    }
     if (documentType) query.documentType = documentType;
 
     const [documents, total] = await Promise.all([
@@ -39,7 +42,7 @@ export const getDocuments = async (req, res) => {
 
 export const getDocumentById = async (req, res) => {
   try {
-    const document = await Document.findById(req.params.id)
+    const document = await Document.findOne({ _id: req.params.id, ...req.documentQuery })
       .populate('member', 'name photo phone email');
 
     if (!document) {
@@ -101,14 +104,7 @@ export const uploadDocument = async (req, res) => {
     res.status(201).json(document);
   } catch (error) {
     // Delete uploaded file if error
-    if (req.file?.path) {
-      try {
-        const publicId = req.file.path.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(publicId);
-      } catch (err) {
-        console.error('Error deleting file:', err);
-      }
-    }
+    if (req.file?.path) await deleteAsset(req.file.path);
     res.status(400).json({ message: error.message });
   }
 };
@@ -138,27 +134,14 @@ export const updateDocument = async (req, res) => {
       updatedDocument = await Document.findByIdAndUpdate(
         req.params.id,
         updateData,
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
       );
     } catch (error) {
-      if (req.file?.filename) {
-        try {
-          await cloudinary.uploader.destroy(req.file.filename);
-        } catch (cleanupError) {
-          console.error('Error deleting rejected replacement file:', cleanupError);
-        }
-      }
+      if (req.file?.path) await deleteAsset(req.file.path);
       throw error;
     }
 
-    if (req.file && oldFileUrl) {
-      try {
-        const publicId = oldFileUrl.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(publicId);
-      } catch (error) {
-        console.error('Error deleting replaced document file:', error);
-      }
-    }
+    if (req.file && oldFileUrl) await deleteAsset(oldFileUrl);
 
     io.to('role:admin').emit('document:updated', updatedDocument);
 
@@ -176,14 +159,7 @@ export const deleteDocument = async (req, res) => {
     }
 
     // Delete file from Cloudinary
-    if (document.fileUrl) {
-      try {
-        const publicId = document.fileUrl.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(publicId);
-      } catch (err) {
-        console.error('Error deleting file:', err);
-      }
-    }
+    if (document.fileUrl) await deleteAsset(document.fileUrl);
 
     await document.deleteOne();
 
@@ -204,7 +180,14 @@ export const getDocumentsByMember = async (req, res) => {
       return res.status(404).json({ message: 'Member not found' });
     }
 
-    const documents = await Document.find({ member: memberId })
+    if (req.user?.role !== 'admin') {
+      const allowedMemberIds = req.documentQuery?.member?.$in || [];
+      if (!allowedMemberIds.includes(String(memberId))) {
+        return res.status(403).json({ message: 'You do not have access to these documents.' });
+      }
+    }
+
+    const documents = await Document.find({ member: memberId, ...req.documentQuery })
       .sort({ createdAt: -1 });
 
     // Group by document type

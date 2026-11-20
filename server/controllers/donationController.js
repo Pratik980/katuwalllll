@@ -31,7 +31,7 @@ const generateReceiptNumber = async () => {
   const counter = await Counter.findByIdAndUpdate(
     counterId,
     { $inc: { seq: 1 } },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (!counter) throw new Error('Failed to allocate a donation receipt number');
 
@@ -41,6 +41,7 @@ const generateReceiptNumber = async () => {
 // Get donations with search, filters, sorting, pagination
 export const getDonations = async (req, res) => {
   try {
+    const isAdmin = req.user?.role === 'admin';
     const {
       page = 1,
       limit = 10,
@@ -57,20 +58,22 @@ export const getDonations = async (req, res) => {
     } = req.query;
 
     const skip = (page - 1) * limit;
-    let query = {};
+    const query = {};
 
     // Search functionality
     if (search) {
-      query.$or = [
+      const searchOr = [
         { donorName: { $regex: search, $options: 'i' } },
         { donorPhone: { $regex: search, $options: 'i' } },
         { donorEmail: { $regex: search, $options: 'i' } },
         { remarks: { $regex: search, $options: 'i' } },
         { receiptNumber: { $regex: search, $options: 'i' } },
       ];
-      if (!isNaN(search) && search.trim() !== '') {
-        query.$or.push({ amount: Number(search) });
+      // Never allow amount-based search for non-admins
+      if (isAdmin && !isNaN(search) && String(search).trim() !== '') {
+        searchOr.push({ amount: Number(search) });
       }
+      query.$or = searchOr;
     }
 
     // Filters
@@ -85,26 +88,55 @@ export const getDonations = async (req, res) => {
       };
     }
 
-    if (minAmount !== '' || maxAmount !== '') {
+    // Amount filters are admin-only
+    if (isAdmin && (minAmount !== '' && minAmount !== undefined || maxAmount !== '' && maxAmount !== undefined)) {
       const amountFilter = {};
-      if (minAmount !== '' && !isNaN(minAmount)) amountFilter.$gte = Number(minAmount);
-      if (maxAmount !== '' && !isNaN(maxAmount)) amountFilter.$lte = Number(maxAmount);
+      if (minAmount !== '' && minAmount !== undefined && !isNaN(minAmount)) amountFilter.$gte = Number(minAmount);
+      if (maxAmount !== '' && maxAmount !== undefined && !isNaN(maxAmount)) amountFilter.$lte = Number(maxAmount);
       if (Object.keys(amountFilter).length > 0) query.amount = amountFilter;
     }
 
-    const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    // Prevent sorting by financial fields for non-admins
+    const allowedSortFields = isAdmin
+      ? ['donationDate', 'amount', 'donorName', 'paymentMethod', 'category', 'paymentStatus', 'createdAt', 'receiptNumber']
+      : ['donationDate', 'donorName', 'paymentMethod', 'category', 'paymentStatus', 'createdAt', 'receiptNumber'];
+    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'donationDate';
+    const sort = { [safeSortBy]: sortOrder === 'asc' ? 1 : -1 };
+
+    let listQuery = Donation.find(query)
+      .populate('donorId', 'name photo phone email')
+      .sort(sort)
+      .skip(skip)
+      .limit(parseInt(limit, 10));
+    if (!isAdmin) {
+      listQuery = listQuery.select('-amount -qrPaymentReference -qrPaymentCompleted -qrPaymentDate -createdBy -updatedBy');
+    }
 
     const [donations, total] = await Promise.all([
-      Donation.find(query)
-        .populate('donorId', 'name photo phone email')
-        .sort(sort)
-        .skip(skip)
-        .limit(parseInt(limit)),
+      listQuery,
       Donation.countDocuments(query),
     ]);
 
-    // Calculate summary statistics with payment status breakdown
+    const baseResponse = {
+      data: donations,
+      pagination: {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        total,
+        pages: Math.ceil(total / parseInt(limit, 10)),
+      },
+    };
+
+    if (!isAdmin) {
+      return res.json({
+        ...baseResponse,
+        summary: null,
+        uniqueDonors: null,
+        monthly: [],
+      });
+    }
+
+    // Calculate summary statistics with payment status breakdown (admin only)
     const summary = await Donation.aggregate([
       { $match: query },
       {
@@ -149,13 +181,7 @@ export const getDonations = async (req, res) => {
     ]);
 
     res.json({
-      data: donations,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / limit),
-      },
+      ...baseResponse,
       summary: summary[0] || {
         totalAmount: 0,
         averageAmount: 0,
@@ -173,18 +199,22 @@ export const getDonations = async (req, res) => {
       monthly,
     });
   } catch (error) {
-    console.error("❌ GET DONATIONS ERROR:", error);
+    console.error('GET DONATIONS ERROR:', error);
     res.status(500).json({ message: error.message });
   }
 };
-
 // Get donation by ID
 export const getDonationById = async (req, res) => {
   try {
-    const donation = await Donation.findById(req.params.id)
-      .populate('donorId', 'name photo phone email')
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email');
+    const isAdmin = req.user?.role === 'admin';
+    let query = Donation.findById(req.params.id)
+      .populate('donorId', 'name photo phone email');
+    if (isAdmin) {
+      query = query.populate('createdBy', 'name email').populate('updatedBy', 'name email');
+    } else {
+      query = query.select('-amount -qrPaymentReference -qrPaymentCompleted -qrPaymentDate -createdBy -updatedBy');
+    }
+    const donation = await query;
 
     if (!donation) {
       return res.status(404).json({ message: 'Donation not found' });
@@ -192,7 +222,7 @@ export const getDonationById = async (req, res) => {
 
     res.json(donation);
   } catch (error) {
-    console.error("❌ GET DONATION BY ID ERROR:", error);
+    console.error("�?O GET DONATION BY ID ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -200,7 +230,12 @@ export const getDonationById = async (req, res) => {
 // Create donation
 export const createDonation = async (req, res) => {
   try {
-    console.log("📥 Create Donation Request Body:", req.body);
+    console.log('📥 Create Donation Request:', {
+      donorType: req.body?.donorType,
+      paymentMethod: req.body?.paymentMethod,
+      category: req.body?.category,
+      paymentStatus: req.body?.paymentStatus,
+    });
 
     const donationData = {
       ...req.body,
@@ -313,7 +348,7 @@ export const updateDonation = async (req, res) => {
     const updatedDonation = await Donation.findByIdAndUpdate(
       req.params.id,
       updateData,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).populate('donorId', 'name photo phone email');
 
     if (io) {

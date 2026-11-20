@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import api from '../api/axios';
+import toast from 'react-hot-toast';
+import api, { refreshCsrfToken } from '../api/axios';
 import { setCsrfToken } from '../api/csrfToken';
 
 const AuthContext = createContext(null);
@@ -19,8 +20,7 @@ export const AuthProvider = ({ children }) => {
     let active = true;
     const initialize = async () => {
       try {
-        const csrf = await api.get('/auth/csrf');
-        setCsrfToken(csrf.data.csrfToken);
+        await refreshCsrfToken();
         const response = await api.get('/auth/me');
         if (active) setUser(response.data.user);
       } catch (error) {
@@ -46,12 +46,18 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = useCallback(async () => {
     try {
-      await api.post('/auth/logout');
+      await api.post('/auth/logout', {}, { _skipErrorToast: true });
     } catch (error) {
-      if (error.response?.status !== 401) throw error;
+      if (error.response?.status !== 401) {
+        toast.error(error.response?.data?.message || 'Signed out locally, but the server session could not be cleared.');
+      }
+    } finally {
+      setCsrfToken('');
+      setUser(null);
+      delete window.__katuwalMemberDraft__;
+      localStorage.removeItem('memberDraft');
+      localStorage.removeItem('memberDraftPhotos');
     }
-    setCsrfToken('');
-    setUser(null);
   }, []);
 
   const updateUser = useCallback((nextUser) => setUser(nextUser), []);

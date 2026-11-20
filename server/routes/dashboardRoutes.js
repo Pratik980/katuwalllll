@@ -1,5 +1,5 @@
-// src/routes/dashboardRoutes.js
 import express from 'express';
+import { requireFamilyAccess } from '../middlewares/authentication.js';
 import {
   getDashboardStats,
   getQuickStats,
@@ -7,7 +7,7 @@ import {
 
 const router = express.Router();
 
-router.get('/stats', getDashboardStats);
-router.get('/quick-stats', getQuickStats);
+router.get('/stats', requireFamilyAccess, getDashboardStats);
+router.get('/quick-stats', requireFamilyAccess, getQuickStats);
 
 export default router;

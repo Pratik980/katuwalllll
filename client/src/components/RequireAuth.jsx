@@ -6,7 +6,7 @@ const RequireAuth = ({ children, roles }) => {
   const location = useLocation();
 
   if (loading) {
-    return <div className="p-8 text-center text-sm text-slate-600">Loading your account…</div>;
+    return <div className="p-8 text-center text-sm text-slate-600">Loading your account...</div>;
   }
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;

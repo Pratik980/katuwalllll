@@ -106,8 +106,34 @@ export const downloadBackup = async (req, res) => {
   }
 };
 
+const PROTECTED_COLLECTIONS = new Set([
+  'users',
+  'backups',
+  'counters',
+  'authchallenges',
+  'loginactivities',
+  'settings',
+]);
+
+const RESTORABLE_COLLECTIONS = new Set([
+  'members',
+  'families',
+  'houses',
+  'familyrelationships',
+  'donations',
+  'documents',
+  'drafts',
+  'notifications',
+  'chats',
+  'messages',
+]);
+
 export const restoreBackup = async (req, res) => {
   try {
+    if (req.body?.confirm !== 'RESTORE') {
+      return res.status(400).json({ message: "Restore requires confirmation: send { confirm: 'RESTORE' }" });
+    }
+
     const backup = await Backup.findById(req.params.id);
     if (!backup) {
       return res.status(404).json({ message: 'Backup not found' });
@@ -118,19 +144,60 @@ export const restoreBackup = async (req, res) => {
     }
 
     const backupData = JSON.parse(fs.readFileSync(backup.filePath, 'utf8'));
-    const db = mongoose.connection.db;
-
-    // Clear existing data (optional - you might want to implement soft restore)
-    // For safety, we'll only restore collections that exist in backup
-    for (const [collectionName, data] of Object.entries(backupData)) {
-      const collection = db.collection(collectionName);
-      await collection.deleteMany({});
-      if (data.length > 0) await collection.insertMany(data);
+    if (!backupData || typeof backupData !== 'object' || Array.isArray(backupData)) {
+      return res.status(400).json({ message: 'Invalid backup data: expected an object of arrays' });
     }
 
-    res.json({ 
+    const entries = Object.entries(backupData);
+    for (const [collectionName, data] of entries) {
+      if (!Array.isArray(data)) {
+        return res.status(400).json({ message: `Invalid backup data: ${collectionName} is not an array` });
+      }
+    }
+
+    const plan = {};
+    const refusedCollections = [];
+    for (const [collectionName, data] of entries) {
+      if (RESTORABLE_COLLECTIONS.has(collectionName)) {
+        plan[collectionName] = data;
+      } else {
+        refusedCollections.push({
+          collection: collectionName,
+          reason: PROTECTED_COLLECTIONS.has(collectionName)
+            ? 'system-critical collection'
+            : 'unknown collection',
+        });
+      }
+    }
+
+    const collections = Object.keys(plan);
+    const counts = {};
+    for (const collectionName of collections) {
+      counts[collectionName] = plan[collectionName].length;
+    }
+
+    if (req.body.dryRun === true) {
+      return res.json({
+        message: 'Dry run complete; no changes were made',
+        dryRun: true,
+        collections,
+        counts,
+        refusedCollections,
+      });
+    }
+
+    const db = mongoose.connection.db;
+    for (const collectionName of collections) {
+      const collection = db.collection(collectionName);
+      await collection.deleteMany({});
+      if (plan[collectionName].length > 0) await collection.insertMany(plan[collectionName]);
+    }
+
+    res.json({
       message: 'Backup restored successfully',
-      collections: Object.keys(backupData),
+      collections,
+      counts,
+      refusedCollections,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

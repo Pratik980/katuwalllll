@@ -6,6 +6,7 @@ import {
   getCurrentUser,
   login,
   logout,
+  resendOtp,
   resetPassword,
   signUp,
   updateCurrentUser,
@@ -21,12 +22,13 @@ const sensitiveLimit = (max) => rateLimit({
   windowMs: 15 * 60 * 1000,
   max,
   skipInDevelopment: false,
-  keyGenerator: (req) => `${req.ip || req.connection.remoteAddress}:${String(req.body.email || '').trim().toLowerCase()}`,
+  keyGenerator: (req) => `${req.ip || req.connection.remoteAddress}:${String(req.body.email || req.user?._id || '').trim().toLowerCase()}`,
   message: 'Too many authentication attempts. Please try again later.',
 });
 
 router.get('/csrf', getCsrfToken);
 router.post('/signup', sensitiveLimit(5), signUp);
+router.post('/resend-otp', sensitiveLimit(5), resendOtp);
 router.post('/verify-otp', sensitiveLimit(10), verifyOtp);
 router.post('/login', sensitiveLimit(10), login);
 router.post('/forgot-password', sensitiveLimit(5), forgotPassword);

@@ -56,11 +56,6 @@ const Chat = () => {
     }
   }, [messagesData, selectedRoom, queryClient]);
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
   // Join room when selected
   useEffect(() => {
     if (selectedRoom && isConnected) {
@@ -102,9 +97,9 @@ const Chat = () => {
     };
   }, [socket, selectedRoom, on, user?.id, queryClient]);
 
-  const scrollToBottom = () => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, [messages]);
 
   const handleSendMessage = (e) => {
     e.preventDefault();

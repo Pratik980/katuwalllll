@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQuery } from '@tanstack/react-query';
-import api from "../api/axios";
-import toast from 'react-hot-toast';
+import { useQuery } from "@tanstack/react-query";
 import {
   Bars3Icon,
   MagnifyingGlassIcon,
@@ -10,182 +8,109 @@ import {
 } from "@heroicons/react/24/outline";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
+import { getUnreadCount } from "../api/notifications";
 
-const pageRoutes = [
-  ["/dashboard", "dashboard"],
-  ["/members", "members"],
-  ["/profile", "members"],
-  ["/data-entry", "data_entry"],
-  ["/donations", "donations"],
-  ["/families", "families"],
-  ["/family-tree", "family_tree"],
-  ["/documents", "documents"],
-  ["/chat", "chat"],
-  ["/notifications", "notifications"],
-  ["/reports", "reports"],
-  ["/backups", "backups"],
-  ["/settings", "settings"],
-  ["/admin/users", "admin_users"],
-  ["/profile", "profile"],
-];
+// Which page is open, by the first part of the address
+const PAGE_TITLES = {
+  "": "dashboard",
+  dashboard: "dashboard",
+  members: "members",
+  "data-entry": "data_entry",
+  families: "families",
+  "family-tree": "family_tree",
+  notifications: "notifications",
+  reports: "reports",
+};
 
 export default function Header({ toggleSidebar }) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
   const { language, setLanguage, t } = useLanguage();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [search]);
-
-  const { data: searchResults, isFetching: searching } = useQuery({
-    queryKey: ['globalSearch', debouncedSearch],
-    queryFn: async () => (await api.get('/search', { params: { query: debouncedSearch } })).data.results,
-    enabled: debouncedSearch.length >= 2,
-    staleTime: 30_000,
+  const { data: unread } = useQuery({
+    queryKey: ["notifications-unread"],
+    queryFn: getUnreadCount,
+    staleTime: 60 * 1000,
   });
+  const unreadCount = unread?.unread || 0;
 
-  const pageKey = pathname === '/profile'
-    ? 'profile'
-    : pageRoutes.find(([route]) => pathname === route || pathname.startsWith(`${route}/`))?.[1] || "dashboard";
+  const pageKey = PAGE_TITLES[location.pathname.split("/")[1] || ""];
+  const displayName = user?.name || t('administrator');
 
-  const handleSearch = (event) => {
-    event.preventDefault();
+  const handleSearch = (e) => {
+    e.preventDefault();
     if (!search.trim()) return;
-    setSearchOpen(false);
     navigate(`/members?search=${encodeURIComponent(search.trim())}`);
-  };
-
-  const openMember = (memberId) => {
-    setSearchOpen(false);
-    setSearch('');
-    navigate(`/profile/${memberId}`);
-  };
-
-  const openFamily = (familyName) => {
-    setSearchOpen(false);
-    setSearch('');
-    navigate(`/families?search=${encodeURIComponent(familyName)}`);
+    setSearch("");
   };
 
   const handleLanguageToggle = () => {
-    setLanguage(language === "en" ? "ne" : "en");
-  };
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate('/login', { replace: true });
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Could not sign out. Please try again.');
-    }
+    setLanguage(language === 'en' ? 'ne' : 'en');
   };
 
   return (
-    <header className="topbar fixed top-0 right-0 left-0 lg:left-72 z-30 border-b backdrop-blur-xl transition-all">
-      <div className="h-full flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-9">
-        <div className="flex min-w-0 items-center gap-3">
+    <header className="fixed top-0 right-0 left-0 lg:left-72 h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm z-30 transition-all">
+      <div className="h-full flex items-center justify-between px-4 lg:px-8">
+        <div className="flex items-center gap-4">
           <button
-            type="button"
             onClick={toggleSidebar}
-            aria-label="Open navigation"
-            className="topbar-icon-button lg:hidden h-10 w-10 rounded-xl flex items-center justify-center"
+            className="lg:hidden p-2 rounded-xl hover:bg-slate-100 transition"
           >
-            <Bars3Icon className="w-5 h-5" />
+            <Bars3Icon className="w-6 h-6 text-slate-700" />
           </button>
-          {/* <div className="min-w-0">
-            <p className="hidden sm:block text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
-              Katuwal Bansha Batika
-            </p>
-            <h2 className="truncate text-sm sm:text-[17px] font-semibold tracking-tight text-slate-800">
-              {t(pageKey)}
+
+          <div className="hidden md:block">
+            <h2 className="text-xl font-bold text-slate-800">
+              {pageKey ? t(pageKey) : t('app_name')}
             </h2>
-          </div> */}
+            <p className="text-sm text-slate-500">
+              {t('welcome_back')} 👋
+            </p>
+          </div>
         </div>
 
-        <form onSubmit={handleSearch} className="relative flex min-w-0 w-full max-w-md">
-          <div className="relative min-w-0 w-full">
-            <MagnifyingGlassIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-[17px] w-[17px] text-slate-400" />
+        <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-xl mx-8">
+          <div className="relative w-full">
+            <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <input
-              type="search"
+              type="text"
               value={search}
-              onChange={(event) => { setSearch(event.target.value); setSearchOpen(true); }}
-              onFocus={() => setSearchOpen(true)}
-              placeholder={t("search_members_families")}
-              aria-label={t("search_members_families")}
-              className="h-10 w-full min-w-0 rounded-xl border border-slate-200/80 bg-slate-50/80 pl-10 pr-3 text-[13px] text-slate-700 placeholder:text-slate-400 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 lg:pr-16"
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('search_members_families')}
+              className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
             />
-            <kbd className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-400 lg:block">
-              Ctrl K
-            </kbd>
           </div>
-          {searchOpen && search.trim().length >= 2 && (
-            <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-96 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-              {searching && <p className="px-3 py-2 text-xs text-slate-500">Searching…</p>}
-              {!searching && searchResults?.members?.data?.length === 0 && searchResults?.families?.data?.length === 0 && (
-                <p className="px-3 py-2 text-sm text-slate-500">No matching records.</p>
-              )}
-              {searchResults?.members?.data?.length > 0 && (
-                <div>
-                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Members</p>
-                  {searchResults.members.data.map((member) => (
-                    <button key={member._id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => openMember(member._id)} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-emerald-50">
-                      <span className="block truncate text-sm font-medium text-slate-800">{member.name}</span>
-                      <span className="block truncate text-xs text-slate-500">{member.familyNumber || member.family || ''} · {member.phone || member.email || ''}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {searchResults?.families?.data?.length > 0 && (
-                <div className="mt-1 border-t border-slate-100 pt-1">
-                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Families</p>
-                  {searchResults.families.data.map((family) => (
-                    <button key={family._id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => openFamily(family.familyName)} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-emerald-50">
-                      <span className="block truncate text-sm font-medium text-slate-800">{family.familyName}</span>
-                      <span className="block truncate text-xs text-slate-500">{family.familyNumber} · {family.clan || ''}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </form>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
-            type="button"
             onClick={handleLanguageToggle}
-            aria-label={language === "en" ? "Switch to Nepali" : "Switch to English"}
-            className="topbar-icon-button h-10 min-w-10 rounded-xl px-2.5 flex items-center justify-center text-xs font-semibold"
+            className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition text-sm font-medium text-slate-700"
           >
-            {language === "en" ? "नेपाली" : "EN"}
+            {language === 'en' ? '🇳🇵' : '🇬🇧'}
           </button>
 
-          {user?.role === 'admin' && <button
-            type="button"
+          <button
             onClick={() => navigate("/notifications")}
-            aria-label={t("notifications")}
-            className="topbar-icon-button relative h-10 w-10 rounded-xl flex items-center justify-center"
+            className="relative w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition"
           >
-            <BellIcon className="w-[18px] h-[18px]" />
-          </button>}
+            <BellIcon className="w-5 h-5 text-slate-700" />
+            {unreadCount > 0 && (
+              <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-red-500 border-2 border-white"></span>
+            )}
+          </button>
 
-          <button type="button" onClick={() => navigate('/profile')} className="hidden sm:flex items-center gap-2.5 border-l border-slate-200 pl-3 text-left">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white text-sm font-bold shadow-sm">
-              {user?.photo ? <img src={user.photo} alt="" className="h-full w-full rounded-xl object-cover" /> : user?.name?.slice(0, 1)?.toUpperCase()}
+          <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-3 py-2">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold shadow">
+              {displayName.charAt(0).toUpperCase()}
             </div>
-            <div className="hidden lg:block min-w-[92px] text-left">
-              <p className="max-w-32 truncate text-xs font-semibold leading-4 text-slate-800">{user?.name}</p>
-              <p className="text-[10px] capitalize text-slate-500">{user?.role}</p>
+            <div className="hidden lg:block text-left">
+              <p className="text-sm font-semibold text-slate-800">{displayName}</p>
+              {user?.role && <p className="text-xs capitalize text-slate-500">{user.role}</p>}
             </div>
-          </button>
-          <button type="button" onClick={handleSignOut} className="hidden rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:block">
-            Sign out
-          </button>
+          </div>
         </div>
       </div>
     </header>

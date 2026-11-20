@@ -22,26 +22,6 @@ export const Chat = () => {
 
   useChatRoom(currentRoom);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchMessages();
-      fetchUnreadCounts();
-    }
-  }, [currentRoom, isOpen]);
-
-  useEffect(() => {
-    const socket = socketService.connect();
-    socket.on('chat:message', handleNewMessage);
-
-    return () => {
-      socket.off('chat:message');
-    };
-  }, [currentRoom]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
   const fetchMessages = async () => {
     try {
       setLoading(true);
@@ -102,6 +82,26 @@ export const Chat = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchMessages();
+      fetchUnreadCounts();
+    }
+  }, [currentRoom, isOpen]);
+
+  useEffect(() => {
+    const socket = socketService.connect();
+    socket.on('chat:message', handleNewMessage);
+
+    return () => {
+      socket.off('chat:message');
+    };
+  }, [currentRoom]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 

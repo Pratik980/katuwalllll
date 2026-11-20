@@ -93,7 +93,7 @@ const GlobalSearch = () => {
                     onClick={() => handleResultClick(member)}
                   >
                     <img
-                      src={member.photo || '/default-avatar.png'}
+                      src={member.photo || '/default-avatar.svg'}
                       alt={member.name}
                       className="w-10 h-10 rounded-full object-cover border border-gray-200"
                     />

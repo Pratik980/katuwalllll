@@ -332,7 +332,7 @@
 // src/pages/Donation.jsx - THEME REMOVED
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDonations, deleteDonation, exportAllDonations, getDonationStats } from '../api/donations';
+import { getDonations, deleteDonation, exportAllDonations, exportDonation, getDonationStats } from '../api/donations';
 import Table from '../components/Tablee';
 import Button from '../components/Buttons';
 import DonationStats from '../components/DonationStats';
@@ -340,11 +340,14 @@ import DonationFilters from '../components/DonationFilters';
 import DonationFormModal from '../components/DonationFormModal';
 import QRCodeDisplay from '../components/QRCodeDisplay';
 import { PlusIcon, ArrowDownTrayIcon, DocumentArrowDownIcon, PrinterIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 
 const Donations = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const { t } = useLanguage();
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
@@ -370,7 +373,8 @@ const Donations = () => {
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['donationStats'],
     queryFn: getDonationStats,
-    refetchInterval: 30000,
+    enabled: isAdmin,
+    refetchInterval: isAdmin ? 30000 : false,
   });
 
   const deleteMutation = useMutation({
@@ -407,10 +411,7 @@ const Donations = () => {
 
   const handleExportSingle = async (donation) => {
     try {
-      const response = await fetch(`/api/donations/export/${donation._id}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      const blob = await response.blob();
+      const blob = await exportDonation(donation._id);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -457,7 +458,7 @@ const Donations = () => {
       key: 'receiptNumber',
       label: t('receipt') || 'Receipt #',
       render: (value) => (
-        <span className="font-mono text-sm font-medium text-gray-900">{value}</span>
+        <span className="font-mono text-sm font-medium text-gray-900">{value || '—'}</span>
       ),
     },
     {
@@ -470,13 +471,13 @@ const Donations = () => {
         </div>
       ),
     },
-    {
+    ...(isAdmin ? [{
       key: 'amount',
       label: t('amount') || 'Amount',
       render: (value) => (
         <span className="font-semibold text-green-600">Rs. {value?.toFixed(2) || '0.00'}</span>
       ),
-    },
+    }] : []),
     {
       key: 'paymentMethod',
       label: t('payment_method') || 'Payment',
@@ -533,7 +534,7 @@ const Donations = () => {
         );
       },
     },
-    {
+    ...(isAdmin ? [{
       key: 'actions',
       label: t('actions') || 'Actions',
       render: (_, row) => (
@@ -559,7 +560,7 @@ const Donations = () => {
           </button>
         </div>
       ),
-    },
+    }] : []),
   ];
 
   const printStyles = `
@@ -579,22 +580,24 @@ const Donations = () => {
       <div className="flex flex-wrap justify-between items-center gap-4 no-print">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('donations') || 'Donations'}</h1>
-          <p className="text-gray-600">{t('track_donations') || 'Track and manage all donations'}</p>
+          <p className="text-gray-600">{isAdmin ? (t('track_donations') || 'Track and manage all donations') : (t('donation_list') || 'View donation records')}</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={handlePrint}>
-            <PrinterIcon className="h-4 w-4 mr-1" />
-            {t('print') || 'Print'}
-          </Button>
-          <Button variant="outline" onClick={handleExportAll}>
-            <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
-            {t('export_all') || 'Export All'}
-          </Button>
-          <Button variant="primary" onClick={handleAddNew}>
-            <PlusIcon className="h-4 w-4 mr-1" />
-            {t('add_donation') || 'Add Donation'}
-          </Button>
-        </div>
+        {isAdmin && (
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={handlePrint}>
+              <PrinterIcon className="h-4 w-4 mr-1" />
+              {t('print') || 'Print'}
+            </Button>
+            <Button variant="outline" onClick={handleExportAll}>
+              <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
+              {t('export_all') || 'Export All'}
+            </Button>
+            <Button variant="primary" onClick={handleAddNew}>
+              <PlusIcon className="h-4 w-4 mr-1" />
+              {t('add_donation') || 'Add Donation'}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="hidden print-only text-center mb-6">
@@ -603,9 +606,9 @@ const Donations = () => {
         <hr className="my-4" />
       </div>
 
-      <DonationStats stats={statsData} isLoading={statsLoading} />
-      <QRCodeDisplay />
-      <DonationFilters filters={filters} onFilterChange={handleFilterChange} onSearch={handleSearch} />
+      {isAdmin && <DonationStats stats={statsData} isLoading={statsLoading} />}
+      {isAdmin && <QRCodeDisplay />}
+      <DonationFilters filters={filters} onFilterChange={handleFilterChange} onSearch={handleSearch} showAmountFilters={isAdmin} />
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <Table
@@ -621,12 +624,14 @@ const Donations = () => {
         />
       </div>
 
-      <DonationFormModal
-        isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        donation={selectedDonation}
-        mode={formMode}
-      />
+      {isAdmin && (
+        <DonationFormModal
+          isOpen={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          donation={selectedDonation}
+          mode={formMode}
+        />
+      )}
     </div>
   );
 };

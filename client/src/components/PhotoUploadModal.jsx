@@ -219,15 +219,6 @@ const PhotoUploadModal = ({
     };
   }, []);
 
-  // Handle camera setup when isCameraOpen changes
-  useEffect(() => {
-    if (isCameraOpen) {
-      startCamera();
-    } else {
-      stopCamera();
-    }
-  }, [isCameraOpen]);
-
   const startCamera = async () => {
     try {
       setCameraError(null);
@@ -275,6 +266,14 @@ const PhotoUploadModal = ({
     setIsCameraReady(false);
     setCameraError(null);
   };
+
+  useEffect(() => {
+    if (isCameraOpen) {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+  }, [isCameraOpen]);
 
   const handleCameraClick = () => {
     setIsCameraOpen(true);

@@ -6,8 +6,11 @@ import {
   restoreBackup,
   deleteBackup,
 } from '../controllers/backupController.js';
+import { requireRole } from '../middlewares/authentication.js';
 
 const router = express.Router();
+
+router.use(requireRole('admin'));
 
 router.get('/', getBackups);
 router.post('/', createBackup);

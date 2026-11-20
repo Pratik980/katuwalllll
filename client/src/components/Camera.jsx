@@ -11,14 +11,6 @@ const Camera = ({ onCapture, onClose }) => {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
 
-  useEffect(() => {
-    startCamera();
-
-    return () => {
-      stopCamera();
-    };
-  }, []);
-
   const startCamera = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -44,6 +36,14 @@ const Camera = ({ onCapture, onClose }) => {
       setStream(null);
     }
   };
+
+  useEffect(() => {
+    startCamera();
+
+    return () => {
+      stopCamera();
+    };
+  }, []);
 
   const capturePhoto = () => {
     if (!isCameraReady || !videoRef.current) return;

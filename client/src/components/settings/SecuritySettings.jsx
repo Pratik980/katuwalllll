@@ -218,7 +218,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
             {activeDevices.map((device, index) => (
               <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
                 <div className="flex items-center space-x-3">
-                  <Icons.Device className="w-5 h-5 text-gray-400" />
+                  <Icons.MonitorSmartphone className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm font-medium">{device.name}</p>
                     <p className="text-xs text-gray-500">
@@ -265,6 +265,21 @@ const SecuritySettings = ({ data, onDataChange }) => {
             View History
           </Button>
         </div>
+        {historyData?.data?.length > 0 && (
+          <div className="mt-4 max-h-64 space-y-2 overflow-y-auto">
+            {historyData.data.map((entry) => (
+              <div key={entry.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium">{entry.browser} on {entry.os}</p>
+                  <p className="text-xs text-gray-500">{entry.ip || 'Unknown IP'} · {new Date(entry.createdAt).toLocaleString()}</p>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full ${entry.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
+                  {entry.success ? 'Success' : 'Failed'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end">

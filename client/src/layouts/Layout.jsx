@@ -131,17 +131,21 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div className="app-shell">
+    <div className="min-h-screen bg-slate-100">
+      {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
         toggle={closeSidebar}
       />
 
+      {/* Right Side */}
       <div className="lg:ml-72 flex flex-col min-h-screen transition-all duration-300">
-        <Header toggleSidebar={toggleSidebar} />
+        <Header
+          toggleSidebar={toggleSidebar}
+        />
 
-        <main className="app-main flex-1">
-          <div className="app-page-wrap">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 mt-16">
+          <div className="max-w-7xl mx-auto">
             {children}
           </div>
         </main>

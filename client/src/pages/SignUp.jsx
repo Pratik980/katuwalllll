@@ -12,21 +12,44 @@ const SignUp = () => {
   const [form, setForm] = useState({ name: '', email: '', password: '', code: '' });
   const [step, setStep] = useState('details');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [devCode, setDevCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const submitDetails = async (event) => {
     event.preventDefault();
     setError('');
+    setMessage('');
     setSubmitting(true);
     try {
-      await api.post('/auth/signup', {
+      const response = await api.post('/auth/signup', {
         name: form.name,
         email: form.email,
         password: form.password,
       });
       setStep('verify');
+      setDevCode(response.data?.devCode || '');
+      setMessage('A verification code has been sent to your email address.');
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Could not start account registration.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resendCode = async () => {
+    setError('');
+    setMessage('');
+    setSubmitting(true);
+    try {
+      const response = await api.post('/auth/resend-otp', {
+        email: form.email,
+        purpose: 'signup',
+      });
+      setDevCode(response.data?.devCode || '');
+      setMessage(response.data?.message || 'A new verification code has been sent.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Could not resend the verification code.');
     } finally {
       setSubmitting(false);
     }
@@ -76,6 +99,12 @@ const SignUp = () => {
         <p className="mt-1 text-sm text-slate-600">
           {step === 'details' ? t('signup_verification_info') : `${t('otp_sent_to')} ${form.email}.`}
         </p>
+        {message && <p role="status" className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>}
+        {step === 'verify' && devCode && (
+          <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Development verification code: <strong className="tracking-widest">{devCode}</strong>
+          </p>
+        )}
         {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         {step === 'details' ? (
           <form className="mt-6 space-y-4" onSubmit={submitDetails}>
@@ -92,7 +121,10 @@ const SignUp = () => {
             <button disabled={submitting} className="w-full rounded-lg bg-emerald-800 px-4 py-2.5 font-medium text-white hover:bg-emerald-900 disabled:opacity-60">
               {submitting ? t('verifying') : t('verify_and_create_account')}
             </button>
-            <button type="button" onClick={() => setStep('details')} className="w-full text-sm text-slate-600 hover:text-slate-900">
+            <button type="button" onClick={resendCode} disabled={submitting} className="w-full text-sm font-medium text-emerald-700 hover:underline disabled:opacity-60">
+              {t('resend_code') || 'Resend verification code'}
+            </button>
+            <button type="button" onClick={() => { setStep('details'); setMessage(''); setError(''); }} className="w-full text-sm text-slate-600 hover:text-slate-900">
               {t('back_to_account_details')}
             </button>
           </form>

@@ -110,10 +110,10 @@ const RelationshipSelector = ({
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {selectedMember && (
                 <img
-                  src={selectedMember.photo || '/default-avatar.png'}
+                  src={selectedMember.photo || '/default-avatar.svg'}
                   alt={selectedMember.name}
                   className="w-6 h-6 rounded-full object-cover border border-gray-200 flex-shrink-0"
-                  onError={(e) => { e.target.src = '/default-avatar.png'; }}
+                  onError={(e) => { e.target.src = '/default-avatar.svg'; }}
                 />
               )}
               <span className={`truncate ${selectedMember ? 'text-gray-800' : 'text-gray-400'}`}>
@@ -176,10 +176,10 @@ const RelationshipSelector = ({
                     onClick={() => handleSelect(member)}
                   >
                     <img
-                      src={member.photo || '/default-avatar.png'}
+                      src={member.photo || '/default-avatar.svg'}
                       alt={member.name}
                       className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
-                      onError={(e) => { e.target.src = '/default-avatar.png'; }}
+                      onError={(e) => { e.target.src = '/default-avatar.svg'; }}
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">

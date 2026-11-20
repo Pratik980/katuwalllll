@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import ImageUpload from '../ImageUpload';
 import Button from '../Button';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { uploadLogo } from '../../api/organization';
+import { uploadLogo, updateOrganization } from '../../api/organization';
 import toast from 'react-hot-toast';
 
 const GeneralSettings = ({ data, onDataChange }) => {
@@ -21,6 +21,21 @@ const GeneralSettings = ({ data, onDataChange }) => {
   });
   const [logoPreview, setLogoPreview] = useState('');
   const queryClient = useQueryClient();
+
+  const saveMutation = useMutation({
+    mutationFn: (payload) => {
+      const form = new FormData();
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) form.append(key, value);
+      });
+      return updateOrganization(form);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+      toast.success('Organization settings saved');
+    },
+    onError: (error) => toast.error(error.response?.data?.message || 'Could not save organization settings'),
+  });
 
   const logoMutation = useMutation({
     mutationFn: uploadLogo,
@@ -223,6 +238,16 @@ const GeneralSettings = ({ data, onDataChange }) => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          onClick={() => saveMutation.mutate(formData)}
+          disabled={saveMutation.isPending}
+        >
+          {saveMutation.isPending ? 'Saving...' : 'Save Organization Settings'}
+        </Button>
       </div>
     </div>
   );

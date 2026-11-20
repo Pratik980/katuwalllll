@@ -30,31 +30,26 @@
 // };
 // middlewares/rateLimit.js - UPDATED for development
 
-const requests = new Map();
-
 export const rateLimit = (options = {}) => {
+  const requests = new Map();
   const {
     windowMs = 15 * 60 * 1000, // 15 minutes
     max = 3000, // ⭐ Increased for development
     message = 'Too many requests, please try again later.',
     skipInDevelopment = true,
-    keyGenerator = (req) => req.ip || req.connection.remoteAddress,
+    keyGenerator = (req) => req.ip || req.connection?.remoteAddress || 'unknown',
   } = options;
+  const limit = Number.isFinite(Number(max)) && Number(max) > 0 ? Number(max) : 100;
 
   return (req, res, next) => {
-    if (skipInDevelopment && process.env.NODE_ENV === 'development') {
+    // ⭐ Skip rate limiting in development, except where a limiter opts in explicitly
+    if (process.env.NODE_ENV !== 'production' && skipInDevelopment && process.env.NODE_ENV === 'development') {
       return next();
     }
 
     const ip = keyGenerator(req);
     const now = Date.now();
     const windowStart = now - windowMs;
-
-    for (const [key, timestamps] of requests.entries()) {
-      if (!timestamps.length || timestamps[timestamps.length - 1] <= windowStart) {
-        requests.delete(key);
-      }
-    }
 
     if (!requests.has(ip)) {
       requests.set(ip, []);
@@ -65,7 +60,14 @@ export const rateLimit = (options = {}) => {
     filteredTimes.push(now);
     requests.set(ip, filteredTimes);
 
-    if (filteredTimes.length > max) {
+    // Now and then, drop addresses that have been quiet for a whole window
+    if (requests.size > 5000) {
+      for (const [address, times] of requests) {
+        if (times[times.length - 1] <= windowStart) requests.delete(address);
+      }
+    }
+
+    if (filteredTimes.length > limit) {
       return res.status(429).json({ message });
     }
 

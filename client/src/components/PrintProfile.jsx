@@ -32,10 +32,10 @@ const PrintProfile = ({ member, onClose }) => {
       {/* Header */}
       <div className="flex items-center gap-4 mb-6 pb-4 border-b-2 border-gray-200">
         <img
-          src={member.photo || '/default-avatar.png'}
+          src={member.photo || '/default-avatar.svg'}
           alt={member.name}
           className="w-24 h-24 rounded-full object-cover border-2 border-gray-300"
-          onError={(e) => { e.target.src = '/default-avatar.png'; }}
+          onError={(e) => { e.target.src = '/default-avatar.svg'; }}
         />
         <div>
           <h2 className="text-xl font-bold text-gray-900">{member.name} {member.surname}</h2>

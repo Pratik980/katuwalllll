@@ -125,7 +125,7 @@
 
 
 // src/components/settings/BackupSettings.jsx
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Button from '../components/Button';
 import Toggle from '../components/Toggle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -134,16 +134,13 @@ import {
   createBackup, 
   deleteBackup, 
   downloadBackup,
+  restoreBackup,
 } from '../api/backups';
 import toast from 'react-hot-toast';
 import * as Icons from 'lucide-react';
 import Table from '../components/Table';
 
-const BackupSettings = ({ data, onDataChange }) => {
-  const [settings, setSettings] = useState({
-    automaticBackup: 'weekly',
-    backupLocation: '/backups',
-  });
+const BackupSettings = () => {
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
@@ -158,7 +155,6 @@ const BackupSettings = ({ data, onDataChange }) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['backups'] });
       toast.success('Backup created successfully');
-      onDataChange();
     },
   });
 
@@ -185,6 +181,14 @@ const BackupSettings = ({ data, onDataChange }) => {
     },
   });
 
+  const restoreBackupMutation = useMutation({
+    mutationFn: restoreBackup,
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast.success('Backup restored successfully');
+    },
+  });
+
   // Get latest backup info for display
   const latestBackup = backupsData?.data?.[0] || null;
 
@@ -202,11 +206,19 @@ const BackupSettings = ({ data, onDataChange }) => {
     }
   };
 
-  const handleSettingChange = async (e) => {
-    const { name, value } = e.target;
-    setSettings(prev => ({ ...prev, [name]: value }));
-    // You can save these settings to your API if needed
-    onDataChange();
+  const handleRestoreBackup = (item) => {
+    if (!item) {
+      toast.error('No backup available to restore');
+      return;
+    }
+    const response = window.prompt(
+      `Restore "${item.fileName}"? This replaces the current application data. Type RESTORE to confirm.`
+    );
+    if (response !== 'RESTORE') {
+      toast.error('Restore cancelled: you must type RESTORE exactly');
+      return;
+    }
+    restoreBackupMutation.mutate(item._id);
   };
 
   // Backup table columns
@@ -227,6 +239,14 @@ const BackupSettings = ({ data, onDataChange }) => {
         title="Download"
       >
         <Icons.Download className="h-5 w-5" />
+      </button>
+      <button
+        onClick={() => handleRestoreBackup(item)}
+        className="text-amber-600 hover:text-amber-900 mr-3"
+        title="Restore"
+        disabled={restoreBackupMutation.isPending}
+      >
+        <Icons.RotateCcw className="h-5 w-5" />
       </button>
       <button
         onClick={() => handleDeleteBackup(item._id)}
@@ -257,19 +277,15 @@ const BackupSettings = ({ data, onDataChange }) => {
 
         <div className="bg-gray-50 rounded-lg p-4 text-center">
           <Icons.Upload className="w-8 h-8 text-primary mx-auto mb-2" />
-          <h4 className="font-medium text-gray-900">Restore Backup</h4>
-          <p className="text-sm text-gray-600 mb-3">Restore data from a backup file</p>
+          <h4 className="font-medium text-gray-900">Restore Latest</h4>
+          <p className="text-sm text-gray-600 mb-3">Restore the most recent backup</p>
           <Button
             variant="warning"
-            onClick={() => {
-              if (confirm('Are you sure you want to restore from backup? This will overwrite current data.')) {
-                // Implement restore functionality
-                toast.info('Restore functionality coming soon');
-              }
-            }}
+            onClick={() => handleRestoreBackup(latestBackup)}
+            disabled={!latestBackup || restoreBackupMutation.isPending}
             className="w-full"
           >
-            Restore Backup
+            {restoreBackupMutation.isPending ? 'Restoring...' : 'Restore Backup'}
           </Button>
         </div>
 
@@ -344,41 +360,7 @@ const BackupSettings = ({ data, onDataChange }) => {
         </div>
         <div>
           <label className="text-sm text-gray-600">Backup Location</label>
-          <p className="font-medium">{settings.backupLocation}</p>
-        </div>
-      </div>
-
-      {/* Automatic Backup Settings */}
-      <div className="border-t border-gray-200 pt-6">
-        <h4 className="text-lg font-medium text-gray-900 mb-4">Automatic Backup</h4>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Backup Frequency
-          </label>
-          <select
-            name="automaticBackup"
-            value={settings.automaticBackup}
-            onChange={handleSettingChange}
-            className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="disabled">Disabled</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Backup Location
-          </label>
-          <input
-            type="text"
-            name="backupLocation"
-            value={settings.backupLocation}
-            onChange={handleSettingChange}
-            className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+          <p className="font-medium">Server backup directory</p>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 // src/components/settings/SystemSettings.jsx
 import { useState, useEffect } from 'react';
+import Button from '../Button';
 import { useMutation } from '@tanstack/react-query';
 import { updateSystemSettings } from '../../api/settings';
 import toast from 'react-hot-toast';

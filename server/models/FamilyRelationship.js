@@ -1,3 +1,4 @@
+
 import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -11,13 +12,11 @@ const familyRelationshipSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Member',
     required: true,
-    index: true,
   },
   relatedMember: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Member',
     required: true,
-    index: true,
   },
   relationshipType: {
     type: String,
@@ -55,6 +54,22 @@ const familyRelationshipSchema = new mongoose.Schema({
 familyRelationshipSchema.index(
   { member: 1, relatedMember: 1, relationshipType: 1 },
   { unique: true }
+);
+
+// ✅ ADD THIS: Prevent duplicate spouse relationships
+familyRelationshipSchema.index(
+  { 
+    member: 1, 
+    relatedMember: 1, 
+    relationshipType: 1 
+  },
+  { 
+    unique: true,
+    name: 'uniqueSpouseRelationship',
+    partialFilterExpression: { 
+      relationshipType: { $in: ['spouse', 'husband', 'wife'] } 
+    }
+  }
 );
 
 // Indexes for performance

@@ -1,5 +1,6 @@
 // src/components/settings/DocumentSettings.jsx
 import { useState, useEffect } from 'react';
+import Button from '../Button';
 import Toggle from '../Toggle';
 import { useMutation } from '@tanstack/react-query';
 import { updateDocumentSettings } from '../../api/settings';
@@ -54,7 +55,7 @@ const DocumentSettings = ({ data, onDataChange }) => {
   };
 
   const fileTypes = [
-    { id: 'pdf', label: 'PDF', icon: Icons.FilePdf },
+    { id: 'pdf', label: 'PDF', icon: Icons.FileText },
     { id: 'jpg', label: 'JPG', icon: Icons.FileImage },
     { id: 'png', label: 'PNG', icon: Icons.FileImage },
     { id: 'docx', label: 'DOCX', icon: Icons.FileText },

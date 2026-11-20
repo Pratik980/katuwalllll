@@ -9,26 +9,37 @@ import {
   getNextHouseNumber,
   getHouseStats,
 } from '../controllers/houseController.js';
-import { rateLimit } from '../middlewares/rateLimit.js';
+import { validate, houseValidation, validateObjectId } from '../middlewares/validation.js';
+import {
+  authenticate,
+  requireCsrf,
+  requireRole,
+} from '../middlewares/authentication.js';
 
 const router = express.Router();
 
-// Apply rate limiting
-router.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+const writable = [authenticate, requireCsrf, requireRole('admin', 'staff')];
 
 // GET routes
 router.get('/', getHouses);
 router.get('/stats', getHouseStats);
 router.get('/next-number', getNextHouseNumber);
-router.get('/:id', getHouseById);
+router.get('/:id', validateObjectId('id', 'House'), getHouseById);
 
 // POST routes
-router.post('/', createHouse);
+router.post('/', ...writable, validate(houseValidation), createHouse);
 
 // PUT routes
-router.put('/:id', updateHouse);
+router.put('/:id', ...writable, validateObjectId('id', 'House'), validate(houseValidation), updateHouse);
 
 // DELETE routes
-router.delete('/:id', deleteHouse);
+router.delete(
+  '/:id',
+  authenticate,
+  requireCsrf,
+  requireRole('admin'),
+  validateObjectId('id', 'House'),
+  deleteHouse
+);
 
 export default router;

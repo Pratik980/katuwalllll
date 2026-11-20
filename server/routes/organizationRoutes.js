@@ -9,6 +9,7 @@ import {
 } from '../controllers/organizationController.js';
 import { uploadSingleLogo, handleUpload } from '../middlewares/upload.js';
 import { rateLimit } from '../middlewares/rateLimit.js';
+import { requireRole } from '../middlewares/authentication.js';
 
 const router = express.Router();
 
@@ -17,6 +18,8 @@ router.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 50 }));
 
 // GET routes
 router.get('/', getOrganization);
+
+router.use(requireRole('admin'));
 
 // POST routes with file upload
 router.post(

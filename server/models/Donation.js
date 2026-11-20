@@ -116,6 +116,5 @@ donationSchema.index({ amount: 1 });
 donationSchema.index({ paymentMethod: 1 });
 donationSchema.index({ donationDate: -1 });
 donationSchema.index({ paymentStatus: 1 });
-donationSchema.index({ receiptNumber: 1 });
 
 export default mongoose.model('Donation', donationSchema);

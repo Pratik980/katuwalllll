@@ -12,6 +12,23 @@ dist
 dist-ssr
 *.local
 
+# Environment variables (never commit real credentials)
+.env
+.env.*
+!.env.example
+
+# Scratch/secret-bearing exports
+copy.txt
+ru.txt
+file.txt
+nodemon
+server@1.0.0
+
+# Backups and duplicate worktree copies
+backups/
+_backup_*/
+
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +39,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.env*

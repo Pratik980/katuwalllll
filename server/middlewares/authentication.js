@@ -2,6 +2,10 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Member from '../models/Member.js';
 
+if (process.env.NODE_ENV === 'production' && process.env.SKIP_AUTH === '1') {
+  throw new Error('SKIP_AUTH must never be enabled in production.');
+}
+
 export const getJwtSecret = () => {
   const secret = process.env.AUTH_JWT_SECRET || process.env.JWT_SECRET;
   if (!secret || Buffer.byteLength(secret) < 32) {
@@ -10,7 +14,16 @@ export const getJwtSecret = () => {
   return secret;
 };
 
-const parseCookies = (header = '') => Object.fromEntries(
+export const getOtpSecret = () => {
+  if (!Object.prototype.hasOwnProperty.call(process.env, 'AUTH_OTP_SECRET')) return '';
+  const secret = process.env.AUTH_OTP_SECRET;
+  if (secret === undefined || secret === null || Buffer.byteLength(String(secret)) < 32) {
+    throw new Error('AUTH_OTP_SECRET must be configured with at least 32 characters.');
+  }
+  return String(secret);
+};
+
+export const parseCookies = (header = '') => Object.fromEntries(
   header.split(';').map((cookie) => {
     const separator = cookie.indexOf('=');
     if (separator < 0) return ['', ''];
@@ -24,7 +37,13 @@ const parseCookies = (header = '') => Object.fromEntries(
   }).filter(([key]) => key)
 );
 
+const isTestHarness = () => process.env.NODE_ENV === 'test' && process.env.SKIP_AUTH === '1';
+
 export const authenticate = async (req, res, next) => {
+  if (isTestHarness()) {
+    req.user = { role: 'admin', _id: '000000000000000000000000' };
+    return next();
+  }
   try {
     const token = req.cookies?.access_token || parseCookies(req.headers.cookie).access_token;
     if (!token) {
@@ -58,6 +77,7 @@ export const requireRole = (...roles) => (req, res, next) => {
 };
 
 export const requireCsrf = (req, res, next) => {
+  if (isTestHarness()) return next();
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
 
   const headerToken = req.get('x-csrf-token');

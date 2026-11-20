@@ -1,5 +1,5 @@
 // src/components/LineageTree.jsx
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaUser, FaHeart, FaTree, FaPlus, FaMinus, FaExpand, FaCompress } from 'react-icons/fa';
 import { ZoomIn, ZoomOut, Move, Maximize2 } from 'lucide-react';
@@ -34,7 +34,7 @@ const LineageTree = ({
   }, [treeData]);
 
   // Reset on tree change
-  useMemo(() => {
+  useEffect(() => {
     if (treeData && treeData.length > 0) {
       initializeExpanded();
     }
@@ -141,7 +141,7 @@ const LineageTree = ({
                       alt={node.name}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.target.src = '/default-avatar.png';
+                        e.target.src = '/default-avatar.svg';
                       }}
                     />
                   ) : (

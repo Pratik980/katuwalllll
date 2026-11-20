@@ -1,0 +1,37 @@
+* text=auto
+
+# Package lockfiles and shell scripts should always use LF
+package-lock.json text eol=lf
+*.lock text eol=lf
+*.sh text eol=lf
+
+# Binary assets (no line-ending conversion or text diffs)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.avif binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.mp3 binary
+*.wav binary
+*.mp4 binary
+*.webm binary
+
+# Source/config files that should stay LF even on Windows
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf

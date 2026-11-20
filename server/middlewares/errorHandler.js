@@ -20,7 +20,13 @@ export const errorHandler = (err, req, res, next) => {
   }
 
   // Default error
-  const statusCode = err.statusCode || 500;
+  const candidateStatus = Number(err.statusCode || err.status);
+  const statusCode = Number.isInteger(candidateStatus) && candidateStatus >= 400 && candidateStatus <= 599
+    ? candidateStatus
+    : 500;
+  if (statusCode >= 500) {
+    return res.status(statusCode).json({ message: 'Internal server error' });
+  }
   res.status(statusCode).json({
     message: err.message || 'Internal server error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),

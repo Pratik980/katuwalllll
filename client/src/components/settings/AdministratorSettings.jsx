@@ -1,5 +1,6 @@
 // src/components/settings/AdministratorSettings.jsx
 import { useState, useEffect } from 'react';
+import Button from '../Button';
 import ImageUpload from '../ImageUpload';
 import Toggle from '../Toggle';
 import { useMutation } from '@tanstack/react-query';

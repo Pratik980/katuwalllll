@@ -1,1560 +1,95 @@
-// // src/controllers/memberController.js
-// import Member from '../models/Member.js';
-// import FamilyRelationship from '../models/FamilyRelationship.js';
-// import Family from '../models/Family.js';
-// import { io } from '../server.js';
-// import cloudinary from '../config/cloudinary.js';
-// import Notification from '../models/Notification.js';
-// import Counter from '../models/Counter.js';
 
-// export const getMembers = async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10, search } = req.query;
-//     const skip = (page - 1) * limit;
-
-//     let query = {};
-//     if (search) {
-//       query = {
-//         $or: [
-//           { name: { $regex: search, $options: 'i' } },
-//           { phone: { $regex: search, $options: 'i' } },
-//           { email: { $regex: search, $options: 'i' } },
-//           { familyNumber: { $regex: search, $options: 'i' } },
-//           { familyLine: { $regex: search, $options: 'i' } },
-//           { citizenshipNumber: { $regex: search, $options: 'i' } },
-//         ],
-//       };
-//     }
-
-//     const [members, total] = await Promise.all([
-//       Member.find(query)
-//         .populate('family', 'familyName familyNumber')
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(parseInt(limit)),
-//       Member.countDocuments(query),
-//     ]);
-
-//     res.json({
-//       data: members,
-//       pagination: {
-//         page: parseInt(page),
-//         limit: parseInt(limit),
-//         total,
-//         pages: Math.ceil(total / limit),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // export const getMemberById = async (req, res) => {
-// //   try {
-// //     const member = await Member.findById(req.params.id)
-// //       .populate('family', 'familyName familyNumber clan')
-// //       .populate(
-// //         'father mother husband wife spouse grandfather grandmother guardian fatherInLaw motherInLaw',
-// //         'name photo'
-// //       )
-// //       .populate(
-// //         'sons daughters elderBrothers youngerBrothers elderSisters youngerSisters grandsons granddaughters sonInLaw daughterInLaw',
-// //         'name photo'
-// //       );
-
-// //     if (!member) {
-// //       return res.status(404).json({ message: 'Member not found' });
-// //     }
-
-// //     // Get all relationships
-// //     const relationships = await FamilyRelationship.find({
-// //       $or: [
-// //         { member: member._id },
-// //         { relatedMember: member._id },
-// //       ],
-// //       isActive: true,
-// //     }).populate({ path: 'member', select: 'name photo memberNumber family', match: relatedMemberMatch })
-// //     }).populate({ path: 'relatedMember', select: 'name photo memberNumber family', match: relatedMemberMatch });
-
-// //     res.json({
-// //       ...member.toObject(),
-// //       relationships,
-// //     });
-// //   } catch (error) {
-// //     res.status(500).json({ message: error.message });
-// //   }
-// // };
-
-// // Get member by ID with proper image URL formatting
-// export const getMemberById = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id)
-//       .populate('family', 'familyName familyNumber clan')
-//       .populate(
-//         'father mother husband wife spouse grandfather grandmother guardian fatherInLaw motherInLaw',
-//         'name photo'
-//       )
-//       .populate(
-//         'sons daughters elderBrothers youngerBrothers elderSisters youngerSisters grandsons granddaughters sonInLaw daughterInLaw',
-//         'name photo'
-//       );
-
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     const memberObj = member.toObject();
-    
-//     // Ensure photo URLs are properly formatted
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     photoFields.forEach(field => {
-//       if (memberObj[field]) {
-//         // If URL doesn't start with http, it might be a Cloudinary path
-//         if (!memberObj[field].startsWith('http')) {
-//           // Check if it's a Cloudinary URL format
-//           if (memberObj[field].includes('cloudinary')) {
-//             memberObj[field] = memberObj[field];
-//           } else {
-//             // Default fallback - might need to construct full URL
-//             memberObj[field] = memberObj[field];
-//           }
-//         }
-//       }
-//     });
-
-//     const relationships = await FamilyRelationship.find({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//       isActive: true,
-//     }).populate('member relatedMember');
-
-//     res.json({
-//       ...memberObj,
-//       relationships,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // export const createMember = async (req, res) => {
-// //   try {
-// //     const files = req.files || {};
-
-// //     const memberData = {
-// //       ...req.body,
-
-// //       photo: files.photo?.[0]?.path || null,
-// //       citizenshipFront: files.citizenshipFront?.[0]?.path || null,
-// //       citizenshipBack: files.citizenshipBack?.[0]?.path || null,
-// //       nationalIdFront: files.nationalIdFront?.[0]?.path || null,
-// //       passportPhoto: files.passportPhoto?.[0]?.path || null,
-// //       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || null,
-
-// //       createdBy: req.user?._id || null,
-// //       updatedBy: req.user?._id || null,
-// //     };
-// //     // const memberData = {
-// //     //   ...req.body,
-// //     //   photo: req.file?.path || null,
-// //     //   createdBy: req.user?._id || null,
-// //     //   updatedBy: req.user?._id || null,
-// //     // };
-
-// //     // If family reference provided, update family member count
-// //     if (memberData.family) {
-// //       await Family.findByIdAndUpdate(memberData.family, {
-// //         $inc: { totalMembers: 1 },
-// //       });
-// //     }
-
-// //     const member = new Member(memberData);
-// //     await member.save();
-
-// //     // Synchronize relationships for created member
-// //     await synchronizeRelationships(member);
-
-// //     // Create notification
-// //     const notification = new Notification({
-// //       type: 'member_added',
-// //       title: 'New Member Added',
-// //       message: `${member.name} has been added to the system.`,
-// //       data: { memberId: member._id },
-// //       createdBy: req.user?._id || null,
-// //     });
-// //     await notification.save();
-
-// //     io.emit('member:created', member);
-// //     io.emit('notification:new', notification);
-
-// //     res.status(201).json(member);
-// //   } catch (error) {
-// //   console.log("============== ERROR ==============");
-// //   console.log(error);
-// //   console.log("message:", error.message);
-// //   console.log("name:", error.name);
-// //   console.log("code:", error.code);
-// //   console.log("stack:", error.stack);
-// //   console.log("body:", req.body);
-// //   console.log("files:", req.files);
-
-// //   return res.status(400).json({
-// //     success: false,
-// //     message: error.message || "Unknown Error",
-// //     error,
-// //   });
-// // }
-// // };
-
-
-// export const createMember = async (req, res) => {
-//   try {
-//     const files = req.files || {};
-
-//     // Get auto-increment member number
-//     const counter = await Counter.findByIdAndUpdate(
-//       'memberNumber',
-//       { $inc: { seq: 1 } },
-//       { new: true, upsert: true }
-//     );
-
-//     const memberData = {
-//       ...req.body,
-//       memberNumber: `M-${String(counter.seq).padStart(6, '0')}`, // Format: M-000001
-//       photo: files.photo?.[0]?.path || null,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || null,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || null,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || null,
-//       passportPhoto: files.passportPhoto?.[0]?.path || null,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || null,
-//       createdBy: req.user?._id || null,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     if (memberData.family) {
-//       await Family.findByIdAndUpdate(memberData.family, {
-//         $inc: { totalMembers: 1 },
-//       });
-//     }
-
-//     const member = new Member(memberData);
-//     await member.save();
-
-//     await synchronizeRelationships(member);
-
-//     const notification = new Notification({
-//       type: 'member_added',
-//       title: 'New Member Added',
-//       message: `${member.name} (${member.memberNumber}) has been added to the system.`,
-//       data: { memberId: member._id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:created', member);
-//     io.emit('notification:new', notification);
-
-//     res.status(201).json(member);
-//   } catch (error) {
-//     console.log("============== ERROR ==============");
-//     console.log(error);
-//     console.log("message:", error.message);
-
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message || "Unknown Error",
-//       error,
-//     });
-//   }
-// };
-
-// // export const updateMember = async (req, res) => {
-// //   try {
-// //     const member = await Member.findById(req.params.id);
-// //     if (!member) {
-// //       return res.status(404).json({ message: 'Member not found' });
-// //     }
-
-// //     // If new photo uploaded, delete old photo from Cloudinary
-// //     if (req.file && member.photo) {
-// //       const publicId = member.photo.split('/').pop().split('.')[0];
-// //       await cloudinary.uploader.destroy(publicId);
-// //     }
-
-// //     const updatedMember = await Member.findByIdAndUpdate(
-// //       req.params.id,
-// //       {
-// //         ...req.body,
-// //         photo: req.file?.path || member.photo,
-// //         updatedBy: req.user?._id || null,
-// //       },
-// //       { new: true, runValidators: true }
-// //     );
-
-// //     // Create notification
-// //     const notification = new Notification({
-// //       type: 'member_updated',
-// //       title: 'Member Updated',
-// //       message: `${updatedMember.name}'s profile has been updated.`,
-// //       data: { memberId: updatedMember._id },
-// //       createdBy: req.user?._id || null,
-// //     });
-// //     await notification.save();
-
-// //     io.emit('member:updated', updatedMember);
-// //     io.emit('notification:new', notification);
-
-// //     res.json(updatedMember);
-// //   } catch (error) {
-// //     if (error.code === 11000) {
-// //       return res.status(400).json({ message: 'Duplicate entry found' });
-// //     }
-// //     res.status(400).json({ message: error.message });
-// //   }
-// // };
-
-// export const updateMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-
-//     if (!member) {
-//       return res.status(404).json({
-//         message: "Member not found",
-//       });
-//     }
-
-//     const files = req.files || {};
-
-//     // Delete old Cloudinary images if new ones are uploaded
-//     if (files.photo?.[0]?.path && member.photo) {
-//       const publicId = member.photo.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-//     if (files.citizenshipFront?.[0]?.path && member.citizenshipFront) {
-//       const publicId = member.citizenshipFront.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-//     if (files.citizenshipBack?.[0]?.path && member.citizenshipBack) {
-//       const publicId = member.citizenshipBack.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-//     if (files.nationalIdFront?.[0]?.path && member.nationalIdFront) {
-//       const publicId = member.nationalIdFront.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-//     if (files.passportPhoto?.[0]?.path && member.passportPhoto) {
-//       const publicId = member.passportPhoto.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-//     if (files.drivingLicensePhoto?.[0]?.path && member.drivingLicensePhoto) {
-//       const publicId = member.drivingLicensePhoto.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-
-//     const updateData = {
-//       ...req.body,
-
-//       photo:
-//         files.photo?.[0]?.path || member.photo,
-
-//       citizenshipFront:
-//         files.citizenshipFront?.[0]?.path ||
-//         member.citizenshipFront,
-
-//       citizenshipBack:
-//         files.citizenshipBack?.[0]?.path ||
-//         member.citizenshipBack,
-
-//       nationalIdFront:
-//         files.nationalIdFront?.[0]?.path ||
-//         member.nationalIdFront,
-
-//       passportPhoto:
-//         files.passportPhoto?.[0]?.path ||
-//         member.passportPhoto,
-
-//       drivingLicensePhoto:
-//         files.drivingLicensePhoto?.[0]?.path ||
-//         member.drivingLicensePhoto,
-
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     const updatedMember = await Member.findByIdAndUpdate(
-//       req.params.id,
-//       updateData,
-//       {
-//         new: true,
-//         runValidators: true,
-//       }
-//     );
-
-//     // Synchronize relationships for updated member
-//     await synchronizeRelationships(updatedMember, member);
-
-//     const notification = new Notification({
-//       type: "member_updated",
-//       title: "Member Updated",
-//       message: `${updatedMember.name}'s profile has been updated.`,
-//       data: {
-//         memberId: updatedMember._id,
-//       },
-//       createdBy: req.user?._id || null,
-//     });
-
-//     await notification.save();
-
-//     io.emit("member:updated", updatedMember);
-//     io.emit("notification:new", notification);
-
-//     res.json(updatedMember);
-//   } catch (error) {
-//     console.error(error);
-
-//     if (error.code === 11000) {
-//       return res.status(400).json({
-//         message: "Duplicate entry",
-//       });
-//     }
-
-//     res.status(400).json({
-//       message: error.message,
-//     });
-//   }
-// };
-
-// export const deleteMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     // Delete photo from Cloudinary if exists
-//     if (member.photo) {
-//       const publicId = member.photo.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-
-//     // Delete all document images from Cloudinary
-//     if (member.citizenshipFront) {
-//       const publicId = member.citizenshipFront.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-//     if (member.citizenshipBack) {
-//       const publicId = member.citizenshipBack.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-//     if (member.nationalIdFront) {
-//       const publicId = member.nationalIdFront.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-//     if (member.passportPhoto) {
-//       const publicId = member.passportPhoto.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-//     if (member.drivingLicensePhoto) {
-//       const publicId = member.drivingLicensePhoto.split('/').pop().split('.')[0];
-//       await cloudinary.uploader.destroy(publicId);
-//     }
-
-//     // Remove member from bidirectional relationships
-//     await removeFromRelationships(member);
-
-//     // Update family member count
-//     if (member.family) {
-//       await Family.findByIdAndUpdate(member.family, {
-//         $inc: { totalMembers: -1 },
-//       });
-//     }
-
-//     // Delete all relationships
-//     await FamilyRelationship.deleteMany({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//     });
-
-//     await Member.findByIdAndDelete(req.params.id);
-
-//     // Create notification
-//     const notification = new Notification({
-//       type: 'member_deleted',
-//       title: 'Member Deleted',
-//       message: `${member.name} has been removed from the system.`,
-//       data: { memberId: req.params.id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:deleted', { id: req.params.id });
-//     io.emit('notification:new', notification);
-
-//     res.json({ message: 'Member deleted successfully' });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const searchMembers = async (req, res) => {
-//   try {
-//     const { query } = req.query;
-//     if (!query) {
-//       return res.status(400).json({ message: 'Search query is required' });
-//     }
-
-//     const members = await Member.find({
-//       $text: { $search: query },
-//     })
-//     .populate('family', 'familyName familyNumber')
-//     .sort({ score: { $meta: 'textScore' } })
-//     .limit(20);
-
-//     res.json(members);
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMembersByFamily = async (req, res) => {
-//   try {
-//     const { familyId } = req.params;
-    
-//     const family = await Family.findById(familyId);
-//     if (!family) {
-//       return res.status(404).json({ message: 'Family not found' });
-//     }
-
-//     const members = await Member.find({ family: familyId })
-//       .select('name photo gender dob isAlive relationship generation')
-//       .sort({ name: 1 });
-
-//     res.json({
-//       family: {
-//         id: family._id,
-//         name: family.familyName,
-//         number: family.familyNumber,
-//       },
-//       total: members.length,
-//       data: members,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberStats = async (req, res) => {
-//   try {
-//     const [total, byGender, byStatus, byGeneration] = await Promise.all([
-//       Member.countDocuments(),
-//       Member.aggregate([
-//         { $group: { _id: '$gender', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$isAlive', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$generation', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//       ]),
-//     ]);
-
-//     res.json({
-//       total,
-//       byGender: byGender.reduce((acc, curr) => {
-//         acc[curr._id || 'unknown'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byStatus: byStatus.reduce((acc, curr) => {
-//         acc[curr._id ? 'living' : 'deceased'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byGeneration: byGeneration.map(g => ({
-//         generation: g._id || 'unknown',
-//         count: g.count,
-//       })),
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // Helper function to synchronize relationships
-// const synchronizeRelationships = async (member, oldMember = null) => {
-//   const memberId = member._id;
-
-//   // If oldMember exists, remove old references
-//   if (oldMember) {
-//     await removeFromRelationships(oldMember);
-//   }
-
-//   // Map of relationship fields to their reverse fields
-//   const relationshipMap = {
-//     father: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     mother: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     husband: { reverseField: 'wife' },
-//     wife: { reverseField: 'husband' },
-//     spouse: { reverseField: 'spouse' },
-//     grandfather: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     grandmother: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     guardian: { reverseField: 'guardian' },
-//   };
-
-//   // Process each relationship field
-//   for (const [field, config] of Object.entries(relationshipMap)) {
-//     if (member[field]) {
-//       const relatedMember = await Member.findById(member[field]);
-//       if (relatedMember) {
-//         // Determine which reverse field to update
-//         let reverseField = config.reverseField;
-//         if (config.reverseCondition) {
-//           reverseField = config.reverseCondition(member);
-//         }
-
-//         // Add this member to the related member's reverse field
-//         const update = {};
-//         if (Array.isArray(relatedMember[reverseField])) {
-//           update[reverseField] = [...new Set([...relatedMember[reverseField], memberId])];
-//         } else {
-//           update[reverseField] = memberId;
-//         }
-
-//         await Member.findByIdAndUpdate(relatedMember._id, update);
-//       }
-//     }
-//   }
-// };
-
-// // Helper function to remove member from bidirectional relationships
-// const removeFromRelationships = async (member) => {
-//   const memberId = member._id;
-
-//   // Remove from father's children
-//   if (member.father) {
-//     await Member.findByIdAndUpdate(member.father, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from mother's children
-//   if (member.mother) {
-//     await Member.findByIdAndUpdate(member.mother, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from husband/wife
-//   if (member.husband) {
-//     await Member.findByIdAndUpdate(member.husband, {
-//       $unset: { wife: 1 }
-//     });
-//   }
-//   if (member.wife) {
-//     await Member.findByIdAndUpdate(member.wife, {
-//       $unset: { husband: 1 }
-//     });
-//   }
-
-//   // Remove from spouse
-//   if (member.spouse) {
-//     await Member.findByIdAndUpdate(member.spouse, {
-//       $unset: { spouse: 1 }
-//     });
-//   }
-
-//   // Remove from grandfather/grandmother
-//   if (member.grandfather) {
-//     await Member.findByIdAndUpdate(member.grandfather, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-//   if (member.grandmother) {
-//     await Member.findByIdAndUpdate(member.grandmother, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from guardian
-//   if (member.guardian) {
-//     await Member.findByIdAndUpdate(member.guardian, {
-//       $unset: { guardian: 1 }
-//     });
-//   }
-
-//   // Remove from elder/younger brothers and sisters
-//   const brotherFields = ['elderBrothers', 'youngerBrothers'];
-//   const sisterFields = ['elderSisters', 'youngerSisters'];
-
-//   for (const field of brotherFields) {
-//     if (member[field] && Array.isArray(member[field])) {
-//       for (const brotherId of member[field]) {
-//         await Member.findByIdAndUpdate(brotherId, {
-//           $pull: {
-//             elderBrothers: memberId,
-//             youngerBrothers: memberId
-//           }
-//         });
-//       }
-//     }
-//   }
-
-//   for (const field of sisterFields) {
-//     if (member[field] && Array.isArray(member[field])) {
-//       for (const sisterId of member[field]) {
-//         await Member.findByIdAndUpdate(sisterId, {
-//           $pull: {
-//             elderSisters: memberId,
-//             youngerSisters: memberId
-//           }
-//         });
-//       }
-//     }
-//   }
-
-//   // Remove from in-laws
-//   const inLawFields = ['fatherInLaw', 'motherInLaw', 'sonInLaw', 'daughterInLaw'];
-//   for (const field of inLawFields) {
-//     if (member[field]) {
-//       await Member.findByIdAndUpdate(member[field], {
-//         $pull: {
-//           [field]: memberId
-//         }
-//       });
-//     }
-//   }
-// };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // controllers/memberController.js - COMPLETE FIXED FILE
-
-// import Member from '../models/Member.js';
-// import Family from '../models/Family.js';
-// import House from '../models/House.js';
-// import FamilyRelationship from '../models/FamilyRelationship.js';
-// import { io } from '../server.js';
-// import cloudinary from '../config/cloudinary.js';
-// import Notification from '../models/Notification.js';
-// import Counter from '../models/Counter.js';
-
-// // Helper function to get sequential member number
-// const getNextMemberNumber = async () => {
-//   const counter = await Counter.findByIdAndUpdate(
-//     'memberNumber',
-//     { $inc: { seq: 1 } },
-//     { new: true, upsert: true }
-//   );
-//   return `MEM-${String(counter.seq).padStart(6, '0')}`;
-// };
-
-// // Helper to get next roll number
-// const getNextRollNumber = async () => {
-//   const counter = await Counter.findByIdAndUpdate(
-//     'rollNumber',
-//     { $inc: { seq: 1 } },
-//     { new: true, upsert: true }
-//   );
-//   return String(counter.seq);
-// };
-
-// // Helper to clean array fields - REMOVE EMPTY STRINGS
-// const cleanArrayFields = (body) => {
-//   const arrayFields = [
-//     'sons', 'daughters', 'elderBrothers', 'youngerBrothers',
-//     'elderSisters', 'youngerSisters', 'grandsons', 'granddaughters',
-//     'sonInLaw', 'daughterInLaw'
-//   ];
-  
-//   const cleaned = { ...body };
-//   arrayFields.forEach(field => {
-//     if (cleaned[field] !== undefined) {
-//       if (Array.isArray(cleaned[field])) {
-//         // Filter out empty strings, null, undefined, and invalid ObjectIds
-//         cleaned[field] = cleaned[field]
-//           .filter(id => id && typeof id === 'string' && id.trim() !== '')
-//           .map(id => id.trim());
-//       } else if (typeof cleaned[field] === 'string' && cleaned[field].trim() === '') {
-//         cleaned[field] = [];
-//       }
-//     }
-//   });
-//   return cleaned;
-// };
-
-// // Helper to clean phone number
-// const cleanPhoneNumber = (phone) => {
-//   if (!phone) return '';
-//   // Remove any non-digit characters
-//   const cleaned = phone.replace(/\D/g, '');
-//   // If it's a valid Nepali phone number (10 digits starting with 9)
-//   if (cleaned.length === 10 && cleaned.startsWith('9')) {
-//     return cleaned;
-//   }
-//   return phone; // Return original if not matching
-// };
-
-// // Helper to clean family ID - ensures we get a single string ID
-// const cleanFamilyId = (family) => {
-//   if (!family) return '';
-  
-//   // If it's an array, take the first element
-//   if (Array.isArray(family)) {
-//     return family[0] || '';
-//   }
-  
-//   // If it's an object with _id, extract it
-//   if (typeof family === 'object' && family !== null) {
-//     return family._id || family.id || '';
-//   }
-  
-//   // If it's a string, return as is
-//   if (typeof family === 'string') {
-//     return family;
-//   }
-  
-//   return String(family);
-// };
-
-// export const getMembers = async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10, search, gender, status, generation, verificationStatus, family, district, province, house } = req.query;
-//     const skip = (page - 1) * limit;
-
-//     let query = {};
-    
-//     if (search) {
-//       query = {
-//         $or: [
-//           { name: { $regex: search, $options: 'i' } },
-//           { surname: { $regex: search, $options: 'i' } },
-//           { memberNumber: { $regex: search, $options: 'i' } },
-//           { rollNumber: { $regex: search, $options: 'i' } },
-//           { vanshaGenerationNumber: { $regex: search, $options: 'i' } },
-//           { phone: { $regex: search, $options: 'i' } },
-//           { email: { $regex: search, $options: 'i' } },
-//           { familyNumber: { $regex: search, $options: 'i' } },
-//           { citizenshipNumber: { $regex: search, $options: 'i' } },
-//           { houseNumber: { $regex: search, $options: 'i' } },
-//         ],
-//       };
-//     }
-
-//     if (gender) query.gender = gender;
-//     if (status) query.status = status;
-//     if (generation) query.generation = parseInt(generation);
-//     if (verificationStatus) query.verificationStatus = verificationStatus;
-//     if (family) query.family = family;
-//     if (district) query.district = district;
-//     if (province) query.province = province;
-
-//     if (house) {
-//       const familiesInHouse = await Family.find({ house }).distinct('_id');
-//       query.family = { $in: familiesInHouse };
-//     }
-
-//     const [members, total] = await Promise.all([
-//       Member.find(query)
-//         .populate('family', 'familyName familyNumber vanshaGenerationNumber')
-//         .populate('father mother spouse', 'name photo memberNumber rollNumber')
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(parseInt(limit)),
-//       Member.countDocuments(query),
-//     ]);
-
-//     res.json({
-//       data: members,
-//       pagination: {
-//         page: parseInt(page),
-//         limit: parseInt(limit),
-//         total,
-//         pages: Math.ceil(total / limit),
-//       },
-//     });
-//   } catch (error) {
-//     console.error('getMembers Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberById = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id)
-//       .populate('family', 'familyName familyNumber vanshaGenerationNumber clan')
-//       .populate(
-//         'father mother husband wife spouse grandfather grandmother guardian fatherInLaw motherInLaw',
-//         'name photo memberNumber rollNumber'
-//       )
-//       .populate(
-//         'sons daughters elderBrothers youngerBrothers elderSisters youngerSisters grandsons granddaughters sonInLaw daughterInLaw',
-//         'name photo memberNumber rollNumber'
-//       );
-
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     const memberObj = member.toObject();
-    
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     photoFields.forEach(field => {
-//       if (memberObj[field]) {
-//         if (!memberObj[field].startsWith('http')) {
-//           if (memberObj[field].includes('cloudinary')) {
-//             memberObj[field] = memberObj[field];
-//           }
-//         }
-//       }
-//     });
-
-//     const relationships = await FamilyRelationship.find({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//       isActive: true,
-//     }).populate('member relatedMember');
-
-//     res.json({
-//       ...memberObj,
-//       relationships,
-//     });
-//   } catch (error) {
-//     console.error('getMemberById Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // FIXED createMember - with proper family ID handling
-// export const createMember = async (req, res) => {
-//   try {
-//     const files = req.files || {};
-
-//     // ⭐ FIX: Clean up body data - ensure family is a single string
-//     const body = { ...req.body };
-    
-//     // Clean the family ID
-//     const familyId = cleanFamilyId(body.family);
-//     console.log('📝 Creating member with family ID:', familyId);
-    
-//     if (!familyId) {
-//       console.error('❌ No family ID provided');
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Family is required. Please select a family.',
-//       });
-//     }
-
-//     // Check if family exists
-//     const family = await Family.findById(familyId);
-//     if (!family) {
-//       console.error('❌ Family not found:', familyId);
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Family not found. Please select a valid family.',
-//       });
-//     }
-
-//     // Check if family is closed
-//     if (family.status === 'closed') {
-//       return res.status(403).json({
-//         success: false,
-//         message: 'Family is closed. Please reopen to add members.'
-//       });
-//     }
-
-//     // Set the clean family ID
-//     body.family = familyId;
-
-//     // Clean phone number
-//     if (body.phone) {
-//       body.phone = cleanPhoneNumber(body.phone);
-//     }
-
-//     // Clean array fields
-//     const cleanedBody = cleanArrayFields(body);
-
-//     const memberNumber = await getNextMemberNumber();
-//     const rollNumber = await getNextRollNumber();
-
-//     const memberData = {
-//       ...cleanedBody,
-//       memberNumber,
-//       rollNumber,
-//       vanshaGenerationNumber: family.vanshaGenerationNumber || null,
-//       family: familyId, // Ensure family is set
-//       photo: files.photo?.[0]?.path || null,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || null,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || null,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || null,
-//       passportPhoto: files.passportPhoto?.[0]?.path || null,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || null,
-//       createdBy: req.user?._id || null,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     // Remove undefined values
-//     Object.keys(memberData).forEach(key => {
-//       if (memberData[key] === undefined) {
-//         delete memberData[key];
-//       }
-//     });
-
-//     // Update family total members count
-//     await Family.findByIdAndUpdate(familyId, {
-//       $inc: { totalMembers: 1 },
-//     });
-
-//     const member = new Member(memberData);
-//     await member.save();
-
-//     // Populate the member before sending response
-//     const populatedMember = await Member.findById(member._id)
-//       .populate('family', 'familyName familyNumber vanshaGenerationNumber');
-
-//     // Synchronize relationships
-//     await synchronizeRelationships(member);
-
-//     const notification = new Notification({
-//       type: 'member_added',
-//       title: 'New Member Added',
-//       message: `${member.name} (${member.memberNumber}) has been added to family ${family.familyName}.`,
-//       data: { memberId: member._id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:created', populatedMember);
-//     io.emit('notification:new', notification);
-
-//     res.status(201).json(populatedMember);
-//   } catch (error) {
-//     console.error("❌ Create Member Error:", error);
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message || "Unknown Error",
-//       errors: error.errors || null,
-//     });
-//   }
-// };
-
-// // FIXED updateMember - with proper family ID handling
-// export const updateMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     // Clean the family ID if provided
-//     const body = { ...req.body };
-//     if (body.family) {
-//       const familyId = cleanFamilyId(body.family);
-//       if (familyId) {
-//         // Check if family exists
-//         const family = await Family.findById(familyId);
-//         if (!family) {
-//           return res.status(404).json({
-//             success: false,
-//             message: 'Family not found. Please select a valid family.',
-//           });
-//         }
-//         // Check if family is closed
-//         if (family.status === 'closed') {
-//           return res.status(403).json({
-//             success: false,
-//             message: 'Family is closed. Please reopen to update members.'
-//           });
-//         }
-//         body.family = familyId;
-//       }
-//     }
-
-//     // Check if current family is closed
-//     const currentFamily = await Family.findById(member.family);
-//     if (currentFamily && currentFamily.status === 'closed') {
-//       return res.status(403).json({
-//         success: false,
-//         message: 'Family is closed. Please reopen to update members.'
-//       });
-//     }
-
-//     const files = req.files || {};
-
-//     // Clean phone number
-//     if (body.phone) {
-//       body.phone = cleanPhoneNumber(body.phone);
-//     }
-
-//     // Clean array fields
-//     const cleanedBody = cleanArrayFields(body);
-
-//     // Delete old Cloudinary images if new ones are uploaded
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (files[field]?.[0]?.path && member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     const updateData = {
-//       ...cleanedBody,
-//       photo: files.photo?.[0]?.path || member.photo,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || member.citizenshipFront,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || member.citizenshipBack,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || member.nationalIdFront,
-//       passportPhoto: files.passportPhoto?.[0]?.path || member.passportPhoto,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || member.drivingLicensePhoto,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     // Remove undefined values
-//     Object.keys(updateData).forEach(key => {
-//       if (updateData[key] === undefined) {
-//         delete updateData[key];
-//       }
-//     });
-
-//     // Ensure array fields are properly set
-//     const arrayFields = [
-//       'sons', 'daughters', 'elderBrothers', 'youngerBrothers',
-//       'elderSisters', 'youngerSisters', 'grandsons', 'granddaughters',
-//       'sonInLaw', 'daughterInLaw'
-//     ];
-    
-//     arrayFields.forEach(field => {
-//       if (updateData[field] !== undefined) {
-//         if (!Array.isArray(updateData[field])) {
-//           updateData[field] = [];
-//         }
-//         // Filter out any invalid values
-//         updateData[field] = updateData[field]
-//           .filter(id => id && typeof id === 'string' && id.trim() !== '' && id.trim().length === 24)
-//           .map(id => id.trim());
-//       }
-//     });
-
-//     const updatedMember = await Member.findByIdAndUpdate(
-//       req.params.id,
-//       updateData,
-//       {
-//         new: true,
-//         runValidators: true,
-//         returnDocument: 'after',
-//       }
-//     ).populate('family', 'familyName familyNumber vanshaGenerationNumber');
-
-//     // Synchronize relationships
-//     await synchronizeRelationships(updatedMember, member);
-
-//     const notification = new Notification({
-//       type: "member_updated",
-//       title: "Member Updated",
-//       message: `${updatedMember.name}'s profile has been updated.`,
-//       data: {
-//         memberId: updatedMember._id,
-//       },
-//       createdBy: req.user?._id || null,
-//     });
-
-//     await notification.save();
-
-//     io.emit("member:updated", updatedMember);
-//     io.emit("notification:new", notification);
-
-//     res.json(updatedMember);
-//   } catch (error) {
-//     console.error("❌ Update Member Error:", error);
-
-//     if (error.code === 11000) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Duplicate entry",
-//       });
-//     }
-
-//     res.status(400).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// export const deleteMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     const family = await Family.findById(member.family);
-//     if (family && family.status === 'closed') {
-//       return res.status(403).json({
-//         message: 'Family is closed. Please reopen to delete members.'
-//       });
-//     }
-
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     await removeFromRelationships(member);
-
-//     if (member.family) {
-//       await Family.findByIdAndUpdate(member.family, {
-//         $inc: { totalMembers: -1 },
-//       });
-//     }
-
-//     await FamilyRelationship.deleteMany({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//     });
-
-//     await Member.findByIdAndDelete(req.params.id);
-
-//     const notification = new Notification({
-//       type: 'member_deleted',
-//       title: 'Member Deleted',
-//       message: `${member.name} has been removed from the system.`,
-//       data: { memberId: req.params.id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:deleted', { id: req.params.id });
-//     io.emit('notification:new', notification);
-
-//     res.json({ message: 'Member deleted successfully' });
-//   } catch (error) {
-//     console.error('deleteMember Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const searchMembers = async (req, res) => {
-//   try {
-//     const { query } = req.query;
-//     if (!query) {
-//       return res.status(400).json({ message: 'Search query is required' });
-//     }
-
-//     const members = await Member.find({
-//       $text: { $search: query },
-//     })
-//     .populate('family', 'familyName familyNumber')
-//     .sort({ score: { $meta: 'textScore' } })
-//     .limit(20);
-
-//     res.json(members);
-//   } catch (error) {
-//     console.error('searchMembers Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMembersByFamily = async (req, res) => {
-//   try {
-//     const { familyId } = req.params;
-    
-//     const family = await Family.findById(familyId);
-//     if (!family) {
-//       return res.status(404).json({ message: 'Family not found' });
-//     }
-
-//     const members = await Member.find({ family: familyId })
-//       .select('name photo gender dob isAlive relationship generation memberNumber rollNumber vanshaGenerationNumber')
-//       .sort({ name: 1 });
-
-//     res.json({
-//       family: {
-//         id: family._id,
-//         name: family.familyName,
-//         number: family.familyNumber,
-//         vanshaGenerationNumber: family.vanshaGenerationNumber,
-//         status: family.status,
-//       },
-//       total: members.length,
-//       data: members,
-//     });
-//   } catch (error) {
-//     console.error('getMembersByFamily Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberStats = async (req, res) => {
-//   try {
-//     const [total, byGender, byStatus, byGeneration, byVansha] = await Promise.all([
-//       Member.countDocuments(),
-//       Member.aggregate([
-//         { $group: { _id: '$gender', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$isAlive', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$generation', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$vanshaGenerationNumber', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//         { $limit: 20 },
-//       ]),
-//     ]);
-
-//     res.json({
-//       total,
-//       byGender: byGender.reduce((acc, curr) => {
-//         acc[curr._id || 'unknown'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byStatus: byStatus.reduce((acc, curr) => {
-//         acc[curr._id ? 'living' : 'deceased'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byGeneration: byGeneration.map(g => ({
-//         generation: g._id || 'unknown',
-//         count: g.count,
-//       })),
-//       byVansha: byVansha.map(v => ({
-//         vansha: v._id || 'unknown',
-//         count: v.count,
-//       })),
-//     });
-//   } catch (error) {
-//     console.error('getMemberStats Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // Helper function to synchronize relationships
-// const synchronizeRelationships = async (member, oldMember = null) => {
-//   const memberId = member._id;
-
-//   if (oldMember) {
-//     await removeFromRelationships(oldMember);
-//   }
-
-//   const relationshipMap = {
-//     father: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     mother: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     husband: { reverseField: 'wife' },
-//     wife: { reverseField: 'husband' },
-//     spouse: { reverseField: 'spouse' },
-//     grandfather: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     grandmother: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     guardian: { reverseField: 'guardian' },
-//   };
-
-//   for (const [field, config] of Object.entries(relationshipMap)) {
-//     if (member[field]) {
-//       const relatedMember = await Member.findById(member[field]);
-//       if (relatedMember) {
-//         let reverseField = config.reverseField;
-//         if (config.reverseCondition) {
-//           reverseField = config.reverseCondition(member);
-//         }
-
-//         const update = {};
-//         if (Array.isArray(relatedMember[reverseField])) {
-//           update[reverseField] = [...new Set([...relatedMember[reverseField], memberId])];
-//         } else {
-//           update[reverseField] = memberId;
-//         }
-
-//         await Member.findByIdAndUpdate(relatedMember._id, update);
-//       }
-//     }
-//   }
-// };
-
-// // Helper function to remove member from bidirectional relationships
-// const removeFromRelationships = async (member) => {
-//   const memberId = member._id;
-
-//   if (member.father) {
-//     await Member.findByIdAndUpdate(member.father, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   if (member.mother) {
-//     await Member.findByIdAndUpdate(member.mother, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   if (member.husband) {
-//     await Member.findByIdAndUpdate(member.husband, {
-//       $unset: { wife: 1 }
-//     });
-//   }
-//   if (member.wife) {
-//     await Member.findByIdAndUpdate(member.wife, {
-//       $unset: { husband: 1 }
-//     });
-//   }
-
-//   if (member.spouse) {
-//     await Member.findByIdAndUpdate(member.spouse, {
-//       $unset: { spouse: 1 }
-//     });
-//   }
-
-//   if (member.grandfather) {
-//     await Member.findByIdAndUpdate(member.grandfather, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-//   if (member.grandmother) {
-//     await Member.findByIdAndUpdate(member.grandmother, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-
-//   if (member.guardian) {
-//     await Member.findByIdAndUpdate(member.guardian, {
-//       $unset: { guardian: 1 }
-//     });
-//   }
-// };
-
-// export default {
-//   getMembers,
-//   getMemberById,
-//   createMember,
-//   updateMember,
-//   deleteMember,
-//   searchMembers,
-//   getMembersByFamily,
-//   getMemberStats,
-// };
-
-
-
-
-// controllers/memberController.js - COMPLETE FIXED FILE (rollNumber removed)
-
+import mongoose from 'mongoose';
 import Member from '../models/Member.js';
 import Family from '../models/Family.js';
-import House from '../models/House.js';
 import FamilyRelationship from '../models/FamilyRelationship.js';
 import { io } from '../server.js';
-import cloudinary from '../config/cloudinary.js';
 import Notification from '../models/Notification.js';
 import Counter from '../models/Counter.js';
+import {
+  linkSpouses,
+  addWife,
+  unlinkSpouses,
+  forgetTypedSpouseName,
+  repairSpouseLink,
+  autoLinkSpouse,
+  syncFamilyLinks,
+  resolveGeneration,
+} from '../services/relationshipService.js';
+import { parseDateInput } from '../utils/nepaliCalendar.js';
+import { escapeRegex } from '../utils/text.js';
+import { deleteAsset } from '../utils/cloudinaryAssets.js';
+import { buildMemberQuery } from '../utils/memberQuery.js';
+import { PHOTO_FIELDS, FILE_FIELDS, BS_DATE_FIELDS, RELATION_FIELDS } from '../utils/memberFields.js';
 import { authorizedFamilyIds } from '../middlewares/authentication.js';
 
-const escapeSearchTerm = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const MEMBER_WRITABLE_FIELDS = [
+  'name', 'surname', 'familyLine', 'vanshaGenerationNumber', 'generation', 'generationMode',
+  'genealogyPageNumber', 'relationship', 'parentRelationshipType', 'childBirthOrder', 'lineageRole',
+  'gender', 'dob', 'dobNepali', 'placeOfBirth', 'bloodGroup', 'education', 'occupation', 'phone',
+  'email', 'citizenshipNumber', 'maritalStatus', 'wives', 'wifeNames', 'wifeName', 'wifeDob',
+  'husbandName', 'husbandDob', 'dodNepali', 'wifeDobNepali', 'husbandDobNepali',
+  'citizenshipIssueDateNepali', 'nationalIdIssueDateNepali', 'passportIssueDateNepali',
+  'passportExpiryDateNepali', 'drivingLicenseIssueDateNepali', 'drivingLicenseExpiryDateNepali',
+  'personStatus', 'unknownNameNote', 'isMarriedDaughter', 'currentAddress', 'permanentAddress',
+  'religion', 'casteEthnicity', 'nationality', 'alternatePhone', 'houseNumber', 'wardNumber',
+  'toleVillage', 'municipality', 'district', 'province', 'country', 'postalCode', 'family',
+  'father', 'mother', 'grandfather', 'grandmother', 'spouse', 'guardian', 'familyContact',
+  'citizenshipIssueDate', 'citizenshipIssueDistrict', 'citizenshipFront', 'citizenshipBack',
+  'nationalIdNumber', 'nationalIdIssueDate', 'nationalIdFront', 'passportNumber',
+  'passportIssueDate', 'passportExpiryDate', 'passportPhoto', 'drivingLicenseNumber',
+  'drivingLicenseCategory', 'drivingLicenseIssueDate', 'drivingLicenseExpiryDate',
+  'drivingLicensePhoto', 'birthCertificate', 'marriageCertificate', 'deathCertificate', 'panCard',
+  'voterId', 'biography', 'notes', 'specialRemarks', 'medicalNotes', 'disabilityInfo', 'isAlive',
+  'dod', 'husband', 'wife', 'sons', 'daughters', 'elderBrothers', 'youngerBrothers',
+  'elderSisters', 'youngerSisters', 'grandsons', 'granddaughters', 'fatherInLaw', 'motherInLaw',
+  'sonInLaw', 'daughterInLaw', 'photo',
+];
 
-// ⭐ UPDATED: Helper function to get sequential member number - M0001 format
+const pickFields = (source, fields) => {
+  const picked = {};
+  fields.forEach((field) => {
+    if (source && Object.prototype.hasOwnProperty.call(source, field)) {
+      picked[field] = source[field];
+    }
+  });
+  return picked;
+};
+
+const objectIds = (ids) => ids
+  .map((id) => String(id))
+  .filter((id) => /^[0-9a-fA-F]{24}$/.test(id))
+  .map((id) => new mongoose.Types.ObjectId(id));
+
+const scopedFamilyFilter = (ids) => ({ family: { $in: objectIds(ids) } });
+
+const applyFamilyScope = (query, ids) => {
+  if (ids === null) return query;
+  return { ...query, $and: [...(query.$and || []), scopedFamilyFilter(ids)] };
+};
+
+
 const getNextMemberNumber = async () => {
   const counter = await Counter.findByIdAndUpdate(
     'memberNumber',
     { $inc: { seq: 1 } },
-    { new: true, upsert: true }
+    { returnDocument: 'after', upsert: true }
   );
-  // Format: M0001, M0002, M0003, etc.
   return `M${String(counter.seq).padStart(4, '0')}`;
 };
 
-// ❌ REMOVED: getNextRollNumber function - completely removed
 
-// Helper to clean array fields - REMOVE EMPTY STRINGS
 const cleanArrayFields = (body) => {
   const arrayFields = [
     'sons', 'daughters', 'elderBrothers', 'youngerBrothers',
     'elderSisters', 'youngerSisters', 'grandsons', 'granddaughters',
     'sonInLaw', 'daughterInLaw'
   ];
-  
+
   const cleaned = { ...body };
   arrayFields.forEach(field => {
     if (cleaned[field] !== undefined) {
       if (Array.isArray(cleaned[field])) {
-        // Filter out empty strings, null, undefined, and invalid ObjectIds
         cleaned[field] = cleaned[field]
           .filter(id => id && typeof id === 'string' && id.trim() !== '')
           .map(id => id.trim());
@@ -1566,121 +101,119 @@ const cleanArrayFields = (body) => {
   return cleaned;
 };
 
-// Helper to clean phone number
+
 const cleanPhoneNumber = (phone) => {
   if (!phone) return '';
-  // Remove any non-digit characters
   const cleaned = phone.replace(/\D/g, '');
-  // If it's a valid Nepali phone number (10 digits starting with 9)
   if (cleaned.length === 10 && cleaned.startsWith('9')) {
     return cleaned;
   }
-  return phone; // Return original if not matching
+  return phone;
 };
 
-// Helper to clean family ID - ensures we get a single string ID
+
 const cleanFamilyId = (family) => {
   if (!family) return '';
-  
-  // If it's an array, take the first element
-  if (Array.isArray(family)) {
-    return family[0] || '';
-  }
-  
-  // If it's an object with _id, extract it
+  if (Array.isArray(family)) return family[0] || '';
   if (typeof family === 'object' && family !== null) {
     return family._id || family.id || '';
   }
-  
-  // If it's a string, return as is
-  if (typeof family === 'string') {
-    return family;
-  }
-  
+  if (typeof family === 'string') return family;
   return String(family);
 };
 
-// ⭐ UPDATED: getMembers - removed rollNumber from search
+
+const isTrue = (value) => value === true || value === 'true';
+const isFalse = (value) => value === false || value === 'false';
+
+// Fixed-list fields: an empty choice from the form means "leave as it is"
+const CHOICE_FIELDS = [
+  'gender', 'bloodGroup', 'maritalStatus', 'lineageRole', 'parentRelationshipType',
+  'generationMode', 'personStatus', 'status', 'verificationStatus',
+];
+
+
+// Someone with the same name already in this family. It may be the same person
+// entered twice, or a grandson named after his grandfather: the form asks.
+const findSameName = async ({ family, name, personStatus }, excludeId = null) => {
+  if (!name || !name.trim() || personStatus === 'unknown_name') return null;
+  return Member.findOne({
+    family,
+    name: { $regex: `^${escapeRegex(name.trim())}$`, $options: 'i' },
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+  });
+};
+
+// A citizenship number belongs to one person only
+const findCitizenshipOwner = async (citizenshipNumber, excludeId = null) => {
+  if (!citizenshipNumber || !String(citizenshipNumber).trim()) return null;
+  return Member.findOne({
+    citizenshipNumber: String(citizenshipNumber).trim(),
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+  });
+};
+
+const possibleDuplicate = (res, existing) =>
+  res.status(409).json({
+    success: false,
+    code: 'POSSIBLE_DUPLICATE',
+    message: `यो नामको व्यक्ति यस परिवारमा पहिले नै दर्ता छ: ${existing.name} (${existing.memberNumber})।`,
+    existingMember: { _id: existing._id, name: existing.name, memberNumber: existing.memberNumber },
+  });
+
+const citizenshipTaken = (res, existing) =>
+  res.status(409).json({
+    success: false,
+    code: 'DUPLICATE_CITIZENSHIP',
+    message: `यो नागरिकता नम्बर अर्को सदस्यको हो: ${existing.name} (${existing.memberNumber})। कृपया जाँच गर्नुहोस्।`,
+    existingMember: { _id: existing._id, name: existing.name, memberNumber: existing.memberNumber },
+  });
+
+
+// The other dates on the form are typed in BS like the date of birth.
+// Each is stored as the AD date plus the BS text that was typed.
+const applyBsDates = (body) => {
+  BS_DATE_FIELDS.forEach((field) => {
+    const value = body[field];
+    if (typeof value !== 'string' || !/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(value.trim())) return;
+    const parsed = parseDateInput(value);
+    if (parsed.adDate) {
+      body[field] = parsed.adDate;
+      body[`${field}Nepali`] = parsed.bsString;
+    }
+  });
+};
+
+
+const getBanshaNumber = async (familyId, requestedBansha = null) => {
+
+  if (requestedBansha && requestedBansha.trim() !== '') {
+    return requestedBansha.trim();
+  }
+
+  const family = await Family.findById(familyId);
+  return family?.vanshaGenerationNumber || null;
+};
+
+
 export const getMembers = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, gender, status, generation, verificationStatus, family, district, province, house, hideSpouses } = req.query;
+    const { page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
 
-    if (search !== undefined && (typeof search !== 'string' || search.length > 100)) {
-      return res.status(400).json({ message: 'Search query must be a string of at most 100 characters.' });
-    }
-    const searchTerm = search ? escapeSearchTerm(search.trim()) : '';
-    let query = {};
-    
-    if (searchTerm) {
-      query = {
-        $or: [
-          { name: { $regex: searchTerm, $options: 'i' } },
-          { surname: { $regex: searchTerm, $options: 'i' } },
-          { memberNumber: { $regex: searchTerm, $options: 'i' } },
-          // ❌ REMOVED: rollNumber from search
-          { vanshaGenerationNumber: { $regex: searchTerm, $options: 'i' } },
-          { phone: { $regex: searchTerm, $options: 'i' } },
-          { email: { $regex: searchTerm, $options: 'i' } },
-          { familyNumber: { $regex: searchTerm, $options: 'i' } },
-          { citizenshipNumber: { $regex: searchTerm, $options: 'i' } },
-          { houseNumber: { $regex: searchTerm, $options: 'i' } },
-        ],
-      };
-    }
-
-    if (gender) query.gender = gender;
-    if (status) query.status = status;
-    if (generation) query.generation = parseInt(generation);
-    if (verificationStatus) query.verificationStatus = verificationStatus;
-    if (family) query.family = family;
-    if (district) query.district = district;
-    if (province) query.province = province;
-
-    const familyIds = await authorizedFamilyIds(req.user);
-    if (familyIds !== null) {
-      if (family && !familyIds.includes(String(family))) {
-        return res.status(403).json({ message: 'You do not have access to this family.' });
-      }
-      if (family) query.family = family;
-      else query.family = { $in: familyIds };
-    }
-
-    if (hideSpouses === 'true') {
-      query.$and = [
-        ...(query.$and || []),
-        {
-          $or: [
-            { gender: { $ne: 'female' } },
-            { spouse: null, husband: null, wife: null },
-          ],
-        },
-      ];
-    }
-
-    if (house) {
-      const familiesInHouse = await Family.find({ house }).distinct('_id');
-      const visibleFamilies = familyIds === null
-        ? familiesInHouse
-        : familiesInHouse.filter((id) => familyIds.includes(String(id)));
-      query.family = { $in: visibleFamilies };
-    }
-
-    const memberQuery = Member.find(query);
-    if (req.user.role === 'user') {
-      memberQuery.select('name surname photo memberNumber houseNumber familyNumber vanshaGenerationNumber generation lineageRole childBirthOrder gender phone email isAlive verificationStatus');
-    }
-    const relatedMemberMatch = familyIds === null ? undefined : { family: { $in: familyIds } };
+    const query = applyFamilyScope(
+      await buildMemberQuery(req.query),
+      await authorizedFamilyIds(req.user)
+    );
 
     const [members, total] = await Promise.all([
-      memberQuery
-        .populate('family', 'familyName familyNumber vanshaGenerationNumber')
-        .populate({ path: 'father', select: 'name photo memberNumber', match: relatedMemberMatch })
-        .populate({ path: 'mother', select: 'name photo memberNumber', match: relatedMemberMatch })
-        .populate({ path: 'spouse', select: 'name photo memberNumber', match: relatedMemberMatch })
-        .populate({ path: 'grandfather', select: 'name photo memberNumber', match: relatedMemberMatch })
-        .populate({ path: 'grandmother', select: 'name photo memberNumber', match: relatedMemberMatch })
-        // ❌ REMOVED: rollNumber from populate
+      Member.find(query)
+        .populate({
+          path: 'family',
+          select: 'familyName familyNumber vanshaGenerationNumber house',
+          populate: { path: 'house', select: 'houseNumber' },
+        })
+        .populate('father mother spouse', 'name photo memberNumber')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
@@ -1698,56 +231,50 @@ export const getMembers = async (req, res) => {
     });
   } catch (error) {
     console.error('getMembers Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
+
+// Just enough of every member to fill the father / mother / spouse lists of the
+// form, however many members there are.
+export const getMemberOptions = async (req, res) => {
+  try {
+    const ids = await authorizedFamilyIds(req.user);
+    const members = await Member.find(ids === null ? {} : scopedFamilyFilter(ids))
+      .select('name surname memberNumber gender family')
+      .sort({ name: 1 })
+      .lean();
+    res.json({ data: members });
+  } catch (error) {
+    console.error('getMemberOptions Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+
 export const getMemberById = async (req, res) => {
   try {
-    const visibleFamilies = await authorizedFamilyIds(req.user);
-    const relatedMemberMatch = visibleFamilies === null ? undefined : { family: { $in: visibleFamilies } };
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: 'Member not found' });
+    }
+
     const member = await Member.findById(req.params.id)
       .populate('family', 'familyName familyNumber vanshaGenerationNumber clan')
-      .populate({ path: 'father', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'mother', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'husband', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'wife', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'spouse', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'grandfather', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'grandmother', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'guardian', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'fatherInLaw', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'motherInLaw', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'sons', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'daughters', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'elderBrothers', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'youngerBrothers', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'elderSisters', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'youngerSisters', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'grandsons', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'granddaughters', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'sonInLaw', select: 'name photo memberNumber', match: relatedMemberMatch })
-      .populate({ path: 'daughterInLaw', select: 'name photo memberNumber', match: relatedMemberMatch });
+      .populate(
+        'father mother husband wife spouse grandfather grandmother guardian fatherInLaw motherInLaw',
+        'name photo memberNumber'
+      )
+      .populate(
+        'sons daughters elderBrothers youngerBrothers elderSisters youngerSisters grandsons granddaughters sonInLaw daughterInLaw',
+        'name photo memberNumber'
+      );
 
     if (!member) {
       return res.status(404).json({ message: 'Member not found' });
     }
-    if (visibleFamilies !== null && !visibleFamilies.includes(String(member.family?._id ?? member.family))) {
-      return res.status(404).json({ message: 'Member not found' });
-    }
 
     const memberObj = member.toObject();
-    
-    const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-    photoFields.forEach(field => {
-      if (memberObj[field]) {
-        if (!memberObj[field].startsWith('http')) {
-          if (memberObj[field].includes('cloudinary')) {
-            memberObj[field] = memberObj[field];
-          }
-        }
-      }
-    });
 
     const relationships = await FamilyRelationship.find({
       $or: [
@@ -1755,8 +282,7 @@ export const getMemberById = async (req, res) => {
         { relatedMember: member._id },
       ],
       isActive: true,
-    }).populate({ path: 'member', select: 'name photo memberNumber family', match: relatedMemberMatch })
-      .populate({ path: 'relatedMember', select: 'name photo memberNumber family', match: relatedMemberMatch });
+    }).populate('member relatedMember');
 
     res.json({
       ...memberObj,
@@ -1764,111 +290,37 @@ export const getMemberById = async (req, res) => {
     });
   } catch (error) {
     console.error('getMemberById Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
-const validateSpouseReference = async (spouseId, currentMemberId = null) => {
-  if (!spouseId) return null;
 
-  if (currentMemberId && String(spouseId) === String(currentMemberId)) {
-    return { status: 400, message: 'A member cannot be their own spouse.' };
-  }
-
-  const spouse = await Member.findById(spouseId).select('_id spouse husband wife');
-  if (!spouse) {
-    return { status: 404, message: 'Selected spouse was not found.' };
-  }
-
-  const currentId = currentMemberId ? String(currentMemberId) : null;
-  const existingPartnerIds = [spouse.spouse, spouse.husband, spouse.wife]
-    .map((reference) => String(reference?._id ?? reference ?? ''))
-    .filter(Boolean);
-  if (existingPartnerIds.some((id) => id !== currentId)) {
-    return {
-      status: 409,
-      message: 'Selected spouse is already linked to another member.',
-    };
-  }
-
-  const reverseRelationship = await Member.findOne({
-    ...(currentMemberId ? { _id: { $ne: currentMemberId } } : {}),
-    $or: [
-      { spouse: spouse._id },
-      { husband: spouse._id },
-      { wife: spouse._id },
-    ],
-  }).select('_id');
-
-  if (reverseRelationship) {
-    return {
-      status: 409,
-      message: 'Selected spouse is already linked to another member.',
-    };
-  }
-
-  return null;
-};
-
-const validateRelationshipFamilyAccess = async (data, user) => {
-  const visibleFamilies = await authorizedFamilyIds(user);
-  if (visibleFamilies === null) return true;
-
-  const relationshipFields = [
-    'father', 'mother', 'husband', 'wife', 'spouse', 'grandfather', 'grandmother',
-    'guardian', 'fatherInLaw', 'motherInLaw', 'sons', 'daughters',
-    'elderBrothers', 'youngerBrothers', 'elderSisters', 'youngerSisters',
-    'grandsons', 'granddaughters', 'sonInLaw', 'daughterInLaw',
-  ];
-  const relatedIds = [...new Set(relationshipFields.flatMap((field) => {
-    const value = data[field];
-    return (Array.isArray(value) ? value : [value])
-      .filter(Boolean)
-      .map((relatedMember) => String(relatedMember?._id ?? relatedMember));
-  }))];
-  if (!relatedIds.length) return true;
-
-  const relatedMembers = await Member.find({ _id: { $in: relatedIds } }).select('family').lean();
-  return relatedMembers.every((relatedMember) =>
-    relatedMember.family && visibleFamilies.includes(String(relatedMember.family))
-  );
-};
-
-// ⭐ UPDATED: createMember - removed rollNumber
 export const createMember = async (req, res) => {
   try {
     const files = req.files || {};
+    const body = pickFields(req.body, [...MEMBER_WRITABLE_FIELDS, 'confirmDuplicate']);
+    const confirmDuplicate = isTrue(body.confirmDuplicate);
+    delete body.confirmDuplicate;
 
-    // Clean up body data - ensure family is a single string
-    const body = { ...req.body };
-    
-    // Clean the family ID
+
     const familyId = cleanFamilyId(body.family);
     console.log('📝 Creating member with family ID:', familyId);
-    
+
     if (!familyId) {
-      console.error('❌ No family ID provided');
       return res.status(400).json({
         success: false,
         message: 'Family is required. Please select a family.',
       });
     }
 
-    // Check if family exists
     const family = await Family.findById(familyId);
     if (!family) {
-      console.error('❌ Family not found:', familyId);
       return res.status(404).json({
         success: false,
         message: 'Family not found. Please select a valid family.',
       });
     }
-    const visibleFamilies = await authorizedFamilyIds(req.user);
-    if (visibleFamilies !== null && !visibleFamilies.includes(String(family._id))) {
-      return res.status(403).json({ message: 'You do not have permission to add members to this family.' });
-    }
 
-    // Check if family is closed
     if (family.status === 'closed') {
       return res.status(403).json({
         success: false,
@@ -1876,65 +328,156 @@ export const createMember = async (req, res) => {
       });
     }
 
-    // Set the clean family ID
     body.family = familyId;
 
-    // Clean phone number
+
     if (body.phone) {
       body.phone = cleanPhoneNumber(body.phone);
     }
 
-    // Clean array fields
-    const cleanedBody = cleanArrayFields(body);
-    if (!await validateRelationshipFamilyAccess(cleanedBody, req.user)) {
-      return res.status(403).json({ message: 'You do not have permission to link a member outside your assigned families.' });
+
+    let dobAd = null;
+    let dobNepali = null;
+
+    if (body.dob) {
+      const parsed = parseDateInput(body.dob);
+      dobAd = parsed.adDate;
+      dobNepali = parsed.bsString;
     }
-    if (cleanedBody.spouse) {
-      const spouseError = await validateSpouseReference(cleanedBody.spouse);
-      if (spouseError) {
-        return res.status(spouseError.status).json({ success: false, message: spouseError.message });
+
+
+    if (body.dobNepali && !dobNepali) {
+      dobNepali = body.dobNepali;
+      const parsed = parseDateInput(body.dobNepali);
+      if (parsed.adDate) {
+        dobAd = parsed.adDate;
       }
     }
 
-    // ⭐ UPDATED: Generate member number in M0001 format (no rollNumber)
-    const memberNumber = await getNextMemberNumber();
+
+    // A woman may be added as another wife of a man who is already married.
+    // Any other choice of an already married person is refused.
+    let joinsAsAnotherWife = false;
+    if (body.spouse) {
+      const chosen = await Member.findById(body.spouse).select('spouse gender');
+      if (chosen?.spouse) {
+        joinsAsAnotherWife = body.gender === 'female' && chosen.gender === 'male';
+        if (!joinsAsAnotherWife) {
+          return res.status(400).json({
+            success: false,
+            message: 'This person is already married to someone else. Remove existing spouse first.'
+          });
+        }
+      }
+    }
+
+
+    const cleanedBody = cleanArrayFields(body);
+    CHOICE_FIELDS.forEach((field) => {
+      if (cleanedBody[field] === '') delete cleanedBody[field];
+    });
+
+
+    const citizenshipOwner = await findCitizenshipOwner(cleanedBody.citizenshipNumber);
+    if (citizenshipOwner) {
+      return citizenshipTaken(res, citizenshipOwner);
+    }
+
+    if (!confirmDuplicate) {
+      const sameName = await findSameName({
+        family: familyId,
+        name: cleanedBody.name,
+        personStatus: cleanedBody.personStatus,
+      });
+      if (sameName) {
+        console.log('⚠️ Potential duplicate member found:', sameName.name);
+        return possibleDuplicate(res, sameName);
+      }
+    }
+
+
+    const vanshaNumber = await getBanshaNumber(familyId, cleanedBody.vanshaGenerationNumber);
+
+
+    const personStatus = cleanedBody.personStatus || 'known';
+    let memberName = cleanedBody.name;
+
+    if (personStatus === 'unknown_name') {
+      memberName = memberName || 'नाम अज्ञात';
+    }
+
+
+    const generationMode = cleanedBody.generationMode || 'auto';
+    const generation = await resolveGeneration({
+      mode: generationMode,
+      submitted: cleanedBody.generation,
+      father: cleanedBody.father,
+      mother: cleanedBody.mother,
+      spouse: cleanedBody.spouse,
+    });
+
+    applyBsDates(cleanedBody);
 
     const memberData = {
       ...cleanedBody,
-      memberNumber, // M0001, M0002, etc.
-      // ❌ REMOVED: rollNumber
+      name: memberName,
+      dob: dobAd,
+      dobNepali,
+      vanshaGenerationNumber: vanshaNumber,
+      generation,
+      generationMode,
       family: familyId,
-      photo: files.photo?.[0]?.path || null,
-      citizenshipFront: files.citizenshipFront?.[0]?.path || null,
-      citizenshipBack: files.citizenshipBack?.[0]?.path || null,
-      nationalIdFront: files.nationalIdFront?.[0]?.path || null,
-      passportPhoto: files.passportPhoto?.[0]?.path || null,
-      drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || null,
+      status: isFalse(cleanedBody.isAlive) ? 'deceased' : 'active',
+      verificationStatus: 'pending',
+      personStatus,
       createdBy: req.user?._id || null,
       updatedBy: req.user?._id || null,
     };
 
-    // Remove undefined values
+    PHOTO_FIELDS.forEach((field) => {
+      memberData[field] = files[field]?.[0]?.path || null;
+    });
+    FILE_FIELDS.filter((field) => !PHOTO_FIELDS.includes(field)).forEach((field) => {
+      if (files[field]?.[0]?.path) memberData[field] = files[field][0].path;
+    });
+
     Object.keys(memberData).forEach(key => {
       if (memberData[key] === undefined) {
         delete memberData[key];
       }
     });
 
-    // Update family total members count
+    // The member number is only taken once the record is known to be valid
+    const member = new Member(memberData);
+    await member.validate();
+    member.memberNumber = await getNextMemberNumber();
+    await member.save();
+
+    // Relationships: link the chosen spouse, or find the one already in this family
+    if (cleanedBody.spouse) {
+      if (joinsAsAnotherWife) {
+        await addWife(cleanedBody.spouse, member._id);
+      } else {
+        await linkSpouses(member._id, cleanedBody.spouse);
+      }
+    } else {
+      await autoLinkSpouse(member._id);
+    }
+    await syncFamilyLinks(member);
+
+
     await Family.findByIdAndUpdate(familyId, {
       $inc: { totalMembers: 1 },
     });
 
-    const member = new Member(memberData);
-    await member.save();
 
-    // Populate the member before sending response
+    if (family.recalculateGenerations) {
+      await family.recalculateGenerations();
+    }
+
     const populatedMember = await Member.findById(member._id)
-      .populate('family', 'familyName familyNumber vanshaGenerationNumber');
-
-    // Synchronize relationships
-    await synchronizeRelationships(member);
+      .populate('family', 'familyName familyNumber vanshaGenerationNumber')
+      .populate('spouse', 'name memberNumber');
 
     const notification = new Notification({
       type: 'member_added',
@@ -1945,8 +488,8 @@ export const createMember = async (req, res) => {
     });
     await notification.save();
 
-    io.to('role:admin').emit('member:created', populatedMember);
-    io.to('role:admin').emit('notification:new', notification);
+    io.emit('member:created', populatedMember);
+    io.emit('notification:new', notification);
 
     res.status(201).json(populatedMember);
   } catch (error) {
@@ -1959,24 +502,26 @@ export const createMember = async (req, res) => {
   }
 };
 
-// ⭐ UPDATED: updateMember - removed rollNumber
+
 export const updateMember = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: 'Member not found' });
+    }
+
     const member = await Member.findById(req.params.id);
     if (!member) {
       return res.status(404).json({ message: 'Member not found' });
     }
-    const visibleFamilies = await authorizedFamilyIds(req.user);
-    if (visibleFamilies !== null && !visibleFamilies.includes(String(member.family))) {
-      return res.status(404).json({ message: 'Member not found' });
-    }
 
-    // Clean the family ID if provided
-    const body = { ...req.body };
+    const body = pickFields(req.body, [...MEMBER_WRITABLE_FIELDS, 'confirmDuplicate']);
+    const confirmDuplicate = isTrue(body.confirmDuplicate);
+    delete body.confirmDuplicate;
+
+
     if (body.family) {
       const familyId = cleanFamilyId(body.family);
       if (familyId) {
-        // Check if family exists
         const family = await Family.findById(familyId);
         if (!family) {
           return res.status(404).json({
@@ -1984,7 +529,6 @@ export const updateMember = async (req, res) => {
             message: 'Family not found. Please select a valid family.',
           });
         }
-        // Check if family is closed
         if (family.status === 'closed') {
           return res.status(403).json({
             success: false,
@@ -1992,16 +536,11 @@ export const updateMember = async (req, res) => {
           });
         }
         body.family = familyId;
-        if (visibleFamilies !== null && !visibleFamilies.includes(String(familyId))) {
-          return res.status(403).json({ message: 'You do not have permission to move members into this family.' });
-        }
       }
-    }
-    if (Object.prototype.hasOwnProperty.call(body, 'spouse') && !body.spouse) {
-      body.spouse = null;
+    } else {
+      delete body.family;
     }
 
-    // Check if current family is closed
     const currentFamily = await Family.findById(member.family);
     if (currentFamily && currentFamily.status === 'closed') {
       return res.status(403).json({
@@ -2012,96 +551,251 @@ export const updateMember = async (req, res) => {
 
     const files = req.files || {};
 
-    // Clean phone number
     if (body.phone) {
       body.phone = cleanPhoneNumber(body.phone);
     }
 
-    // Clean array fields
-    const cleanedBody = cleanArrayFields(body);
-    if (!await validateRelationshipFamilyAccess(cleanedBody, req.user)) {
-      return res.status(403).json({ message: 'You do not have permission to link a member outside your assigned families.' });
-    }
-    if (cleanedBody.spouse) {
-      const spouseError = await validateSpouseReference(cleanedBody.spouse, member._id);
-      if (spouseError) {
-        return res.status(spouseError.status).json({ success: false, message: spouseError.message });
+
+    if (body.dob) {
+      const parsed = parseDateInput(body.dob);
+      if (parsed.adDate) {
+        body.dob = parsed.adDate;
+        body.dobNepali = parsed.bsString;
       }
     }
 
-    // Delete old Cloudinary images if new ones are uploaded
-    const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-    for (const field of photoFields) {
-      if (files[field]?.[0]?.path && member[field]) {
-        const publicId = member[field].split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(publicId).catch(() => {});
+    // ---- What the form emptied: an empty value means "remove this" ----
+    const unset = {};
+
+    RELATION_FIELDS.forEach((field) => {
+      if (body[field] === '') {
+        unset[field] = 1;
+        delete body[field];
+      }
+    });
+    if (unset.spouse) {
+      unset.husband = 1;
+      unset.wife = 1;
+      delete body.husband;
+      delete body.wife;
+    }
+
+    BS_DATE_FIELDS.forEach((field) => {
+      if (body[field] === '') {
+        unset[field] = 1;
+        unset[`${field}Nepali`] = 1;
+        delete body[field];
+        delete body[`${field}Nepali`];
+      }
+    });
+
+    if (body.childBirthOrder === '') {
+      unset.childBirthOrder = 1;
+      delete body.childBirthOrder;
+    }
+
+    // A date of birth can only be removed from a person whose name is unknown
+    if (body.dob === '') {
+      delete body.dob;
+      if ((body.personStatus || member.personStatus) === 'unknown_name') {
+        unset.dob = 1;
+        unset.dobNepali = 1;
+        delete body.dobNepali;
       }
     }
+
+    CHOICE_FIELDS.forEach((field) => {
+      if (body[field] === '') delete body[field];
+    });
+    if (body.generation === '') delete body.generation;
+
+    // A removed photo or document
+    const removedFiles = FILE_FIELDS.filter((field) => body[field] === '' && !files[field]?.[0]?.path);
+    removedFiles.forEach((field) => {
+      unset[field] = 1;
+    });
+
+    // ---- Spouse ----
+    const previousSpouseId = member.spouse ? String(member.spouse) : null;
+    const newSpouseId = body.spouse ? String(body.spouse) : null;
+    const spouseChanged = !!newSpouseId && newSpouseId !== previousSpouseId;
+
+    let joinsAsAnotherWife = false;
+    if (spouseChanged) {
+      const chosen = await Member.findById(newSpouseId).select('spouse gender');
+      if (chosen?.spouse && String(chosen.spouse) !== String(member._id)) {
+        joinsAsAnotherWife = (body.gender || member.gender) === 'female' && chosen.gender === 'male';
+        if (!joinsAsAnotherWife) {
+          return res.status(400).json({
+            success: false,
+            message: 'This person is already married to someone else. Remove existing spouse first.'
+          });
+        }
+      }
+    }
+
+    const cleanedBody = cleanArrayFields(body);
+
+
+    // ---- Duplicates: only what this edit actually changed ----
+    const newCitizenship = String(cleanedBody.citizenshipNumber || '').trim();
+    if (newCitizenship && newCitizenship !== String(member.citizenshipNumber || '').trim()) {
+      const citizenshipOwner = await findCitizenshipOwner(newCitizenship, member._id);
+      if (citizenshipOwner) {
+        return citizenshipTaken(res, citizenshipOwner);
+      }
+    }
+
+    const newName = String(cleanedBody.name || '').trim();
+    const nameOrFamilyChanged =
+      (newName && newName.toLowerCase() !== String(member.name || '').trim().toLowerCase()) ||
+      (cleanedBody.family && String(cleanedBody.family) !== String(member.family));
+    if (nameOrFamilyChanged && !confirmDuplicate) {
+      const sameName = await findSameName({
+        family: cleanedBody.family || member.family,
+        name: newName || member.name,
+        personStatus: cleanedBody.personStatus || member.personStatus,
+      }, member._id);
+      if (sameName) {
+        return possibleDuplicate(res, sameName);
+      }
+    }
+
+    applyBsDates(cleanedBody);
 
     const updateData = {
       ...cleanedBody,
-      photo: files.photo?.[0]?.path || member.photo,
-      citizenshipFront: files.citizenshipFront?.[0]?.path || member.citizenshipFront,
-      citizenshipBack: files.citizenshipBack?.[0]?.path || member.citizenshipBack,
-      nationalIdFront: files.nationalIdFront?.[0]?.path || member.nationalIdFront,
-      passportPhoto: files.passportPhoto?.[0]?.path || member.passportPhoto,
-      drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || member.drivingLicensePhoto,
       updatedBy: req.user?._id || null,
     };
 
-    // Remove undefined values
+    // A new file replaces the stored one; otherwise the stored link is left alone
+    const replacedFiles = [];
+    FILE_FIELDS.forEach((field) => {
+      const uploaded = files[field]?.[0]?.path;
+      if (uploaded) {
+        if (member[field]) replacedFiles.push(member[field]);
+        updateData[field] = uploaded;
+      } else {
+        delete updateData[field];
+      }
+    });
+
+    if (cleanedBody.isAlive !== undefined) {
+      if (isFalse(cleanedBody.isAlive)) updateData.status = 'deceased';
+      else if (member.status === 'deceased') updateData.status = 'active';
+    }
+
     Object.keys(updateData).forEach(key => {
       if (updateData[key] === undefined) {
         delete updateData[key];
       }
     });
 
-    // Ensure array fields are properly set
+    const father = unset.father ? null : cleanedBody.father || member.father;
+    const mother = unset.mother ? null : cleanedBody.mother || member.mother;
+    const parentChanged =
+      String(father || '') !== String(member.father || '') ||
+      String(mother || '') !== String(member.mother || '');
+
+    updateData.generation = await resolveGeneration({
+      mode: cleanedBody.generationMode || member.generationMode || 'auto',
+      submitted: cleanedBody.generation,
+      current: member.generation || 1,
+      father,
+      mother,
+      parentChanged: parentChanged && !!(father || mother),
+    });
+
+
     const arrayFields = [
       'sons', 'daughters', 'elderBrothers', 'youngerBrothers',
       'elderSisters', 'youngerSisters', 'grandsons', 'granddaughters',
       'sonInLaw', 'daughterInLaw'
     ];
-    
+
     arrayFields.forEach(field => {
       if (updateData[field] !== undefined) {
         if (!Array.isArray(updateData[field])) {
           updateData[field] = [];
         }
-        // Filter out any invalid values
         updateData[field] = updateData[field]
           .filter(id => id && typeof id === 'string' && id.trim() !== '' && id.trim().length === 24)
           .map(id => id.trim());
       }
     });
 
-    const updatedMember = await Member.findByIdAndUpdate(
+    await Member.findByIdAndUpdate(
       req.params.id,
       updateData,
       {
-        new: true,
         runValidators: true,
         returnDocument: 'after',
       }
-    ).populate('family', 'familyName familyNumber vanshaGenerationNumber');
+    );
 
-    // Synchronize relationships
-    await synchronizeRelationships(updatedMember, member);
+    if (Object.keys(unset).length > 0) {
+      await Member.updateOne({ _id: member._id }, { $unset: unset });
+    }
+
+    // Files that are no longer used
+    await Promise.all([
+      ...replacedFiles.map((url) => deleteAsset(url)),
+      ...removedFiles.filter((field) => member[field]).map((field) => deleteAsset(member[field])),
+    ]);
+
+
+    if (unset.spouse) {
+      if (previousSpouseId) {
+        await unlinkSpouses(member._id, previousSpouseId);
+        await forgetTypedSpouseName(member._id, previousSpouseId);
+      }
+    } else if (spouseChanged) {
+      if (previousSpouseId) {
+        await unlinkSpouses(member._id, previousSpouseId);
+      }
+      if (joinsAsAnotherWife) {
+        await addWife(newSpouseId, member._id);
+      } else {
+        await linkSpouses(member._id, newSpouseId);
+      }
+    } else if (previousSpouseId) {
+      await repairSpouseLink(member._id);
+    } else {
+      await autoLinkSpouse(member._id);
+    }
+
+    const updatedMember = await Member.findById(member._id)
+      .populate('family', 'familyName familyNumber vanshaGenerationNumber');
+
+    // `member` is the record as it was before this edit
+    await syncFamilyLinks(updatedMember, member);
+
+
+    if (currentFamily && currentFamily.recalculateGenerations) {
+      await currentFamily.recalculateGenerations();
+    }
+
+    // Keep each family's stored member total right when a member moves
+    const newFamilyId = String(updatedMember.family?._id || updatedMember.family || '');
+    if (newFamilyId && member.family && newFamilyId !== String(member.family)) {
+      await Promise.all([
+        Family.findByIdAndUpdate(member.family, { $inc: { totalMembers: -1 } }),
+        Family.findByIdAndUpdate(newFamilyId, { $inc: { totalMembers: 1 } }),
+      ]);
+    }
 
     const notification = new Notification({
       type: "member_updated",
       title: "Member Updated",
       message: `${updatedMember.name}'s profile has been updated.`,
-      data: {
-        memberId: updatedMember._id,
-      },
+      data: { memberId: updatedMember._id },
       createdBy: req.user?._id || null,
     });
 
     await notification.save();
 
-    io.to('role:admin').emit("member:updated", updatedMember);
-    io.to('role:admin').emit("notification:new", notification);
+    io.emit("member:updated", updatedMember);
+    io.emit("notification:new", notification);
 
     res.json(updatedMember);
   } catch (error) {
@@ -2121,14 +815,45 @@ export const updateMember = async (req, res) => {
   }
 };
 
-export const deleteMember = async (req, res) => {
+
+// Verified / pending / rejected, set from the Members list
+export const updateVerification = async (req, res) => {
   try {
-    const member = await Member.findById(req.params.id);
+    const { status } = req.body || {};
+    if (!['verified', 'pending', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Verification status must be verified, pending or rejected' });
+    }
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: 'Member not found' });
+    }
+
+    const member = await Member.findByIdAndUpdate(
+      req.params.id,
+      { verificationStatus: status, updatedBy: req.user?._id || null },
+      { returnDocument: 'after' }
+    ).populate('family', 'familyName familyNumber vanshaGenerationNumber');
+
     if (!member) {
       return res.status(404).json({ message: 'Member not found' });
     }
-    const visibleFamilies = await authorizedFamilyIds(req.user);
-    if (visibleFamilies !== null && !visibleFamilies.includes(String(member.family))) {
+
+    io.emit('member:updated', member);
+    res.json(member);
+  } catch (error) {
+    console.error('updateVerification Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+
+export const deleteMember = async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: 'Member not found' });
+    }
+
+    const member = await Member.findById(req.params.id);
+    if (!member) {
       return res.status(404).json({ message: 'Member not found' });
     }
 
@@ -2137,14 +862,6 @@ export const deleteMember = async (req, res) => {
       return res.status(403).json({
         message: 'Family is closed. Please reopen to delete members.'
       });
-    }
-
-    const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-    for (const field of photoFields) {
-      if (member[field]) {
-        const publicId = member[field].split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(publicId).catch(() => {});
-      }
     }
 
     await removeFromRelationships(member);
@@ -2164,6 +881,16 @@ export const deleteMember = async (req, res) => {
 
     await Member.findByIdAndDelete(req.params.id);
 
+    // The member's photo and documents go with the member
+    await Promise.all(FILE_FIELDS.filter((field) => member[field]).map((field) => deleteAsset(member[field])));
+
+    if (member.family) {
+      const updatedFamily = await Family.findById(member.family);
+      if (updatedFamily && updatedFamily.recalculateGenerations) {
+        await updatedFamily.recalculateGenerations();
+      }
+    }
+
     const notification = new Notification({
       type: 'member_deleted',
       title: 'Member Deleted',
@@ -2173,13 +900,13 @@ export const deleteMember = async (req, res) => {
     });
     await notification.save();
 
-    io.to('role:admin').emit('member:deleted', { id: req.params.id });
-    io.to('role:admin').emit('notification:new', notification);
+    io.emit('member:deleted', { id: req.params.id });
+    io.emit('notification:new', notification);
 
     res.json({ message: 'Member deleted successfully' });
   } catch (error) {
     console.error('deleteMember Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -2190,39 +917,44 @@ export const searchMembers = async (req, res) => {
       return res.status(400).json({ message: 'Search query is required' });
     }
 
-    const familyIds = await authorizedFamilyIds(req.user);
+    const ids = await authorizedFamilyIds(req.user);
     const members = await Member.find({
       $text: { $search: query },
-      ...(familyIds !== null ? { family: { $in: familyIds } } : {}),
+      ...(ids === null ? {} : scopedFamilyFilter(ids)),
     })
-    .populate('family', 'familyName familyNumber')
-    .sort({ score: { $meta: 'textScore' } })
-    .limit(20);
+      .populate('family', 'familyName familyNumber')
+      .sort({ score: { $meta: 'textScore' } })
+      .limit(20);
 
     res.json(members);
   } catch (error) {
     console.error('searchMembers Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 
 export const getMembersByFamily = async (req, res) => {
   try {
     const { familyId } = req.params;
-    const visibleFamilies = await authorizedFamilyIds(req.user);
-    if (visibleFamilies !== null && !visibleFamilies.includes(String(familyId))) {
+
+    if (!mongoose.Types.ObjectId.isValid(familyId)) {
       return res.status(404).json({ message: 'Family not found' });
     }
-    
+
+    const ids = await authorizedFamilyIds(req.user);
+    if (ids !== null && !ids.map(String).includes(String(familyId))) {
+      return res.status(403).json({ message: 'You do not have access to this family.' });
+    }
+
     const family = await Family.findById(familyId);
     if (!family) {
       return res.status(404).json({ message: 'Family not found' });
     }
 
     const members = await Member.find({ family: familyId })
-      .select('name photo gender dob isAlive relationship generation memberNumber vanshaGenerationNumber')
-      // ❌ REMOVED: rollNumber from select
-      .sort({ name: 1 });
+      .select('name surname photo gender dob dobNepali isAlive relationship generation generationMode memberNumber vanshaGenerationNumber lineageRole')
+      .sort({ generation: 1, name: 1 });
 
     res.json({
       family: {
@@ -2230,6 +962,7 @@ export const getMembersByFamily = async (req, res) => {
         name: family.familyName,
         number: family.familyNumber,
         vanshaGenerationNumber: family.vanshaGenerationNumber,
+        totalGenerations: family.totalGenerations,
         status: family.status,
       },
       total: members.length,
@@ -2237,31 +970,27 @@ export const getMembersByFamily = async (req, res) => {
     });
   } catch (error) {
     console.error('getMembersByFamily Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
+
 export const getMemberStats = async (req, res) => {
   try {
-    const visibleFamilies = await authorizedFamilyIds(req.user);
-    const match = visibleFamilies === null ? {} : { family: { $in: visibleFamilies } };
+    const ids = await authorizedFamilyIds(req.user);
+    const match = ids === null ? {} : scopedFamilyFilter(ids);
+    const stage = Object.keys(match).length ? [{ $match: match }] : [];
     const [total, byGender, byStatus, byGeneration, byVansha] = await Promise.all([
       Member.countDocuments(match),
+      Member.aggregate([...stage, { $group: { _id: '$gender', count: { $sum: 1 } } }]),
+      Member.aggregate([...stage, { $group: { _id: '$isAlive', count: { $sum: 1 } } }]),
       Member.aggregate([
-        { $match: match },
-        { $group: { _id: '$gender', count: { $sum: 1 } } },
-      ]),
-      Member.aggregate([
-        { $match: match },
-        { $group: { _id: '$isAlive', count: { $sum: 1 } } },
-      ]),
-      Member.aggregate([
-        { $match: match },
+        ...stage,
         { $group: { _id: '$generation', count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
       ]),
       Member.aggregate([
-        { $match: match },
+        ...stage,
         { $group: { _id: '$vanshaGenerationNumber', count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
         { $limit: 20 },
@@ -2289,2467 +1018,42 @@ export const getMemberStats = async (req, res) => {
     });
   } catch (error) {
     console.error('getMemberStats Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
-// Helper function to synchronize relationships
-const synchronizeRelationships = async (member, oldMember = null) => {
-  const memberId = member._id;
 
-  if (oldMember) {
-    await removeFromRelationships(oldMember);
-  }
-
-  const relationshipMap = {
-    father: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-    mother: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-    husband: { reverseField: 'wife' },
-    wife: { reverseField: 'husband' },
-    spouse: { reverseField: 'spouse' },
-    grandfather: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-    grandmother: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-    guardian: { reverseField: 'guardian' },
-  };
-
-  for (const [field, config] of Object.entries(relationshipMap)) {
-    if (member[field]) {
-      const relatedMember = await Member.findById(member[field]);
-      if (relatedMember) {
-        let reverseField = config.reverseField;
-        if (config.reverseCondition) {
-          reverseField = config.reverseCondition(member);
-        }
-
-        const update = {};
-        if (Array.isArray(relatedMember[reverseField])) {
-          update[reverseField] = [...new Set([...relatedMember[reverseField], memberId])];
-        } else {
-          update[reverseField] = memberId;
-        }
-
-        await Member.findByIdAndUpdate(relatedMember._id, update);
-      }
-    }
-  }
-};
-
-// Helper function to remove member from bidirectional relationships
+// Before a member is deleted: every record that points to them lets go.
+// Only records that really point to this member are touched.
 const removeFromRelationships = async (member) => {
   const memberId = member._id;
 
-  if (member.father) {
-    await Member.findByIdAndUpdate(member.father, {
-      $pull: {
-        sons: memberId,
-        daughters: memberId
-      }
-    });
-  }
-
-  if (member.mother) {
-    await Member.findByIdAndUpdate(member.mother, {
-      $pull: {
-        sons: memberId,
-        daughters: memberId
-      }
-    });
-  }
-
-  if (member.husband) {
-    await Member.findByIdAndUpdate(member.husband, {
-      $unset: { wife: 1 }
-    });
-  }
-  if (member.wife) {
-    await Member.findByIdAndUpdate(member.wife, {
-      $unset: { husband: 1 }
-    });
-  }
-
-  if (member.spouse) {
-    await Member.findByIdAndUpdate(member.spouse, {
-      $unset: { spouse: 1 }
-    });
-  }
-
-  if (member.grandfather) {
-    await Member.findByIdAndUpdate(member.grandfather, {
-      $pull: {
-        grandsons: memberId,
-        granddaughters: memberId
-      }
-    });
-  }
-  if (member.grandmother) {
-    await Member.findByIdAndUpdate(member.grandmother, {
-      $pull: {
-        grandsons: memberId,
-        granddaughters: memberId
-      }
-    });
-  }
-
-  if (member.guardian) {
-    await Member.findByIdAndUpdate(member.guardian, {
-      $unset: { guardian: 1 }
-    });
-  }
+  await Promise.all([
+    Member.updateMany(
+      { $or: [{ sons: memberId }, { daughters: memberId }] },
+      { $pull: { sons: memberId, daughters: memberId } }
+    ),
+    Member.updateMany(
+      { $or: [{ grandsons: memberId }, { granddaughters: memberId }] },
+      { $pull: { grandsons: memberId, granddaughters: memberId } }
+    ),
+    Member.updateMany({ wives: memberId }, { $pull: { wives: memberId } }),
+    ...['spouse', 'husband', 'wife', 'father', 'mother', 'grandfather', 'grandmother', 'guardian'].map((field) =>
+      Member.updateMany({ [field]: memberId }, { $unset: { [field]: 1 } })
+    ),
+  ]);
 };
+
 
 export default {
   getMembers,
+  getMemberOptions,
   getMemberById,
   createMember,
   updateMember,
+  updateVerification,
   deleteMember,
   searchMembers,
   getMembersByFamily,
   getMemberStats,
 };
-
-// controllers/memberController.js - COMPLETE FIXED FILE
-
-// import Member from '../models/Member.js';
-// import Family from '../models/Family.js';
-// import House from '../models/House.js';
-// import FamilyRelationship from '../models/FamilyRelationship.js';
-// import { io } from '../server.js';
-// import cloudinary from '../config/cloudinary.js';
-// import Notification from '../models/Notification.js';
-// import Counter from '../models/Counter.js';
-
-// // Helper function to get sequential member number
-// const getNextMemberNumber = async () => {
-//   const counter = await Counter.findByIdAndUpdate(
-//     'memberNumber',
-//     { $inc: { seq: 1 } },
-//     { new: true, upsert: true }
-//   );
-//   return `MEM-${String(counter.seq).padStart(6, '0')}`;
-// };
-
-// // Helper to get next roll number
-// const getNextRollNumber = async () => {
-//   const counter = await Counter.findByIdAndUpdate(
-//     'rollNumber',
-//     { $inc: { seq: 1 } },
-//     { new: true, upsert: true }
-//   );
-//   return String(counter.seq);
-// };
-
-// // Helper to clean array fields - REMOVE EMPTY STRINGS
-// const cleanArrayFields = (body) => {
-//   const arrayFields = [
-//     'sons', 'daughters', 'elderBrothers', 'youngerBrothers',
-//     'elderSisters', 'youngerSisters', 'grandsons', 'granddaughters',
-//     'sonInLaw', 'daughterInLaw'
-//   ];
-  
-//   const cleaned = { ...body };
-//   arrayFields.forEach(field => {
-//     if (cleaned[field] !== undefined) {
-//       if (Array.isArray(cleaned[field])) {
-//         // Filter out empty strings, null, undefined, and invalid ObjectIds
-//         cleaned[field] = cleaned[field]
-//           .filter(id => id && typeof id === 'string' && id.trim() !== '')
-//           .map(id => id.trim());
-//       } else if (typeof cleaned[field] === 'string' && cleaned[field].trim() === '') {
-//         cleaned[field] = [];
-//       }
-//     }
-//   });
-//   return cleaned;
-// };
-
-// // Helper to clean phone number
-// const cleanPhoneNumber = (phone) => {
-//   if (!phone) return '';
-//   // Remove any non-digit characters
-//   const cleaned = phone.replace(/\D/g, '');
-//   // If it's a valid Nepali phone number (10 digits starting with 9)
-//   if (cleaned.length === 10 && cleaned.startsWith('9')) {
-//     return cleaned;
-//   }
-//   return phone; // Return original if not matching
-// };
-
-// export const getMembers = async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10, search, gender, status, generation, verificationStatus, family, district, province, house } = req.query;
-//     const skip = (page - 1) * limit;
-
-//     let query = {};
-    
-//     if (search) {
-//       query = {
-//         $or: [
-//           { name: { $regex: search, $options: 'i' } },
-//           { surname: { $regex: search, $options: 'i' } },
-//           { memberNumber: { $regex: search, $options: 'i' } },
-//           { rollNumber: { $regex: search, $options: 'i' } },
-//           { vanshaGenerationNumber: { $regex: search, $options: 'i' } },
-//           { phone: { $regex: search, $options: 'i' } },
-//           { email: { $regex: search, $options: 'i' } },
-//           { familyNumber: { $regex: search, $options: 'i' } },
-//           { citizenshipNumber: { $regex: search, $options: 'i' } },
-//           { houseNumber: { $regex: search, $options: 'i' } },
-//         ],
-//       };
-//     }
-
-//     if (gender) query.gender = gender;
-//     if (status) query.status = status;
-//     if (generation) query.generation = parseInt(generation);
-//     if (verificationStatus) query.verificationStatus = verificationStatus;
-//     if (family) query.family = family;
-//     if (district) query.district = district;
-//     if (province) query.province = province;
-
-//     if (house) {
-//       const familiesInHouse = await Family.find({ house }).distinct('_id');
-//       query.family = { $in: familiesInHouse };
-//     }
-
-//     const [members, total] = await Promise.all([
-//       Member.find(query)
-//         .populate('family', 'familyName familyNumber vanshaGenerationNumber')
-//         .populate('father mother spouse', 'name photo memberNumber rollNumber')
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(parseInt(limit)),
-//       Member.countDocuments(query),
-//     ]);
-
-//     res.json({
-//       data: members,
-//       pagination: {
-//         page: parseInt(page),
-//         limit: parseInt(limit),
-//         total,
-//         pages: Math.ceil(total / limit),
-//       },
-//     });
-//   } catch (error) {
-//     console.error('getMembers Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberById = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id)
-//       .populate('family', 'familyName familyNumber vanshaGenerationNumber clan')
-//       .populate(
-//         'father mother husband wife spouse grandfather grandmother guardian fatherInLaw motherInLaw',
-//         'name photo memberNumber rollNumber'
-//       )
-//       .populate(
-//         'sons daughters elderBrothers youngerBrothers elderSisters youngerSisters grandsons granddaughters sonInLaw daughterInLaw',
-//         'name photo memberNumber rollNumber'
-//       );
-
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     const memberObj = member.toObject();
-    
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     photoFields.forEach(field => {
-//       if (memberObj[field]) {
-//         if (!memberObj[field].startsWith('http')) {
-//           if (memberObj[field].includes('cloudinary')) {
-//             memberObj[field] = memberObj[field];
-//           }
-//         }
-//       }
-//     });
-
-//     const relationships = await FamilyRelationship.find({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//       isActive: true,
-//     }).populate('member relatedMember');
-
-//     res.json({
-//       ...memberObj,
-//       relationships,
-//     });
-//   } catch (error) {
-//     console.error('getMemberById Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const createMember = async (req, res) => {
-//   try {
-//     const files = req.files || {};
-
-//     // Check if family is closed
-//     if (req.body.family) {
-//       const family = await Family.findById(req.body.family);
-//       if (family && family.status === 'closed') {
-//         return res.status(403).json({
-//           message: 'Family is closed. Please reopen to add members.'
-//         });
-//       }
-//     }
-
-//     // Clean phone number
-//     if (req.body.phone) {
-//       req.body.phone = cleanPhoneNumber(req.body.phone);
-//     }
-
-//     // Clean array fields
-//     const cleanedBody = cleanArrayFields(req.body);
-
-//     const memberNumber = await getNextMemberNumber();
-//     const family = await Family.findById(req.body.family);
-//     const rollNumber = await getNextRollNumber();
-
-//     const memberData = {
-//       ...cleanedBody,
-//       memberNumber,
-//       rollNumber,
-//       vanshaGenerationNumber: family?.vanshaGenerationNumber || null,
-//       photo: files.photo?.[0]?.path || null,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || null,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || null,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || null,
-//       passportPhoto: files.passportPhoto?.[0]?.path || null,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || null,
-//       createdBy: req.user?._id || null,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     // Remove undefined values
-//     Object.keys(memberData).forEach(key => {
-//       if (memberData[key] === undefined) {
-//         delete memberData[key];
-//       }
-//     });
-
-//     if (memberData.family) {
-//       await Family.findByIdAndUpdate(memberData.family, {
-//         $inc: { totalMembers: 1 },
-//       });
-//     }
-
-//     const member = new Member(memberData);
-//     await member.save();
-
-//     // Synchronize relationships
-//     await synchronizeRelationships(member);
-
-//     const notification = new Notification({
-//       type: 'member_added',
-//       title: 'New Member Added',
-//       message: `${member.name} (${member.memberNumber}) has been added to the system.`,
-//       data: { memberId: member._id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:created', member);
-//     io.emit('notification:new', notification);
-
-//     res.status(201).json(member);
-//   } catch (error) {
-//     console.error("Create Member Error:", error);
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message || "Unknown Error",
-//     });
-//   }
-// };
-
-// export const updateMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     // Check if family is closed
-//     const family = await Family.findById(member.family);
-//     if (family && family.status === 'closed') {
-//       return res.status(403).json({
-//         message: 'Family is closed. Please reopen to update members.'
-//       });
-//     }
-
-//     const files = req.files || {};
-
-//     // Clean phone number
-//     if (req.body.phone) {
-//       req.body.phone = cleanPhoneNumber(req.body.phone);
-//     }
-
-//     // Clean array fields - THIS IS THE CRITICAL FIX
-//     const cleanedBody = cleanArrayFields(req.body);
-
-//     // Delete old Cloudinary images if new ones are uploaded
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (files[field]?.[0]?.path && member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     const updateData = {
-//       ...cleanedBody,
-//       photo: files.photo?.[0]?.path || member.photo,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || member.citizenshipFront,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || member.citizenshipBack,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || member.nationalIdFront,
-//       passportPhoto: files.passportPhoto?.[0]?.path || member.passportPhoto,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || member.drivingLicensePhoto,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     // Remove undefined values
-//     Object.keys(updateData).forEach(key => {
-//       if (updateData[key] === undefined) {
-//         delete updateData[key];
-//       }
-//     });
-
-//     // FIX: Ensure array fields are properly set as arrays, not containing empty strings
-//     const arrayFields = [
-//       'sons', 'daughters', 'elderBrothers', 'youngerBrothers',
-//       'elderSisters', 'youngerSisters', 'grandsons', 'granddaughters',
-//       'sonInLaw', 'daughterInLaw'
-//     ];
-    
-//     arrayFields.forEach(field => {
-//       if (updateData[field] !== undefined) {
-//         if (!Array.isArray(updateData[field])) {
-//           updateData[field] = [];
-//         }
-//         // Filter out any invalid values
-//         updateData[field] = updateData[field]
-//           .filter(id => id && typeof id === 'string' && id.trim() !== '' && id.trim().length === 24)
-//           .map(id => id.trim());
-//       }
-//     });
-
-//     const updatedMember = await Member.findByIdAndUpdate(
-//       req.params.id,
-//       updateData,
-//       {
-//         new: true,
-//         runValidators: true,
-//         returnDocument: 'after',
-//       }
-//     );
-
-//     // Synchronize relationships
-//     await synchronizeRelationships(updatedMember, member);
-
-//     const notification = new Notification({
-//       type: "member_updated",
-//       title: "Member Updated",
-//       message: `${updatedMember.name}'s profile has been updated.`,
-//       data: {
-//         memberId: updatedMember._id,
-//       },
-//       createdBy: req.user?._id || null,
-//     });
-
-//     await notification.save();
-
-//     io.emit("member:updated", updatedMember);
-//     io.emit("notification:new", notification);
-
-//     res.json(updatedMember);
-//   } catch (error) {
-//     console.error("Update Member Error:", error);
-
-//     if (error.code === 11000) {
-//       return res.status(400).json({
-//         message: "Duplicate entry",
-//       });
-//     }
-
-//     res.status(400).json({
-//       message: error.message,
-//     });
-//   }
-// };
-
-// export const deleteMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     const family = await Family.findById(member.family);
-//     if (family && family.status === 'closed') {
-//       return res.status(403).json({
-//         message: 'Family is closed. Please reopen to delete members.'
-//       });
-//     }
-
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     await removeFromRelationships(member);
-
-//     if (member.family) {
-//       await Family.findByIdAndUpdate(member.family, {
-//         $inc: { totalMembers: -1 },
-//       });
-//     }
-
-//     await FamilyRelationship.deleteMany({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//     });
-
-//     await Member.findByIdAndDelete(req.params.id);
-
-//     const notification = new Notification({
-//       type: 'member_deleted',
-//       title: 'Member Deleted',
-//       message: `${member.name} has been removed from the system.`,
-//       data: { memberId: req.params.id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:deleted', { id: req.params.id });
-//     io.emit('notification:new', notification);
-
-//     res.json({ message: 'Member deleted successfully' });
-//   } catch (error) {
-//     console.error('deleteMember Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const searchMembers = async (req, res) => {
-//   try {
-//     const { query } = req.query;
-//     if (!query) {
-//       return res.status(400).json({ message: 'Search query is required' });
-//     }
-
-//     const members = await Member.find({
-//       $text: { $search: query },
-//     })
-//     .populate('family', 'familyName familyNumber')
-//     .sort({ score: { $meta: 'textScore' } })
-//     .limit(20);
-
-//     res.json(members);
-//   } catch (error) {
-//     console.error('searchMembers Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMembersByFamily = async (req, res) => {
-//   try {
-//     const { familyId } = req.params;
-    
-//     const family = await Family.findById(familyId);
-//     if (!family) {
-//       return res.status(404).json({ message: 'Family not found' });
-//     }
-
-//     const members = await Member.find({ family: familyId })
-//       .select('name photo gender dob isAlive relationship generation memberNumber rollNumber vanshaGenerationNumber')
-//       .sort({ name: 1 });
-
-//     res.json({
-//       family: {
-//         id: family._id,
-//         name: family.familyName,
-//         number: family.familyNumber,
-//         vanshaGenerationNumber: family.vanshaGenerationNumber,
-//         status: family.status,
-//       },
-//       total: members.length,
-//       data: members,
-//     });
-//   } catch (error) {
-//     console.error('getMembersByFamily Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberStats = async (req, res) => {
-//   try {
-//     const [total, byGender, byStatus, byGeneration, byVansha] = await Promise.all([
-//       Member.countDocuments(),
-//       Member.aggregate([
-//         { $group: { _id: '$gender', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$isAlive', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$generation', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$vanshaGenerationNumber', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//         { $limit: 20 },
-//       ]),
-//     ]);
-
-//     res.json({
-//       total,
-//       byGender: byGender.reduce((acc, curr) => {
-//         acc[curr._id || 'unknown'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byStatus: byStatus.reduce((acc, curr) => {
-//         acc[curr._id ? 'living' : 'deceased'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byGeneration: byGeneration.map(g => ({
-//         generation: g._id || 'unknown',
-//         count: g.count,
-//       })),
-//       byVansha: byVansha.map(v => ({
-//         vansha: v._id || 'unknown',
-//         count: v.count,
-//       })),
-//     });
-//   } catch (error) {
-//     console.error('getMemberStats Error:', error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // Helper function to synchronize relationships
-// const synchronizeRelationships = async (member, oldMember = null) => {
-//   const memberId = member._id;
-
-//   if (oldMember) {
-//     await removeFromRelationships(oldMember);
-//   }
-
-//   const relationshipMap = {
-//     father: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     mother: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     husband: { reverseField: 'wife' },
-//     wife: { reverseField: 'husband' },
-//     spouse: { reverseField: 'spouse' },
-//     grandfather: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     grandmother: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     guardian: { reverseField: 'guardian' },
-//   };
-
-//   for (const [field, config] of Object.entries(relationshipMap)) {
-//     if (member[field]) {
-//       const relatedMember = await Member.findById(member[field]);
-//       if (relatedMember) {
-//         let reverseField = config.reverseField;
-//         if (config.reverseCondition) {
-//           reverseField = config.reverseCondition(member);
-//         }
-
-//         const update = {};
-//         if (Array.isArray(relatedMember[reverseField])) {
-//           update[reverseField] = [...new Set([...relatedMember[reverseField], memberId])];
-//         } else {
-//           update[reverseField] = memberId;
-//         }
-
-//         await Member.findByIdAndUpdate(relatedMember._id, update);
-//       }
-//     }
-//   }
-// };
-
-// // Helper function to remove member from bidirectional relationships
-// const removeFromRelationships = async (member) => {
-//   const memberId = member._id;
-
-//   if (member.father) {
-//     await Member.findByIdAndUpdate(member.father, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   if (member.mother) {
-//     await Member.findByIdAndUpdate(member.mother, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   if (member.husband) {
-//     await Member.findByIdAndUpdate(member.husband, {
-//       $unset: { wife: 1 }
-//     });
-//   }
-//   if (member.wife) {
-//     await Member.findByIdAndUpdate(member.wife, {
-//       $unset: { husband: 1 }
-//     });
-//   }
-
-//   if (member.spouse) {
-//     await Member.findByIdAndUpdate(member.spouse, {
-//       $unset: { spouse: 1 }
-//     });
-//   }
-
-//   if (member.grandfather) {
-//     await Member.findByIdAndUpdate(member.grandfather, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-//   if (member.grandmother) {
-//     await Member.findByIdAndUpdate(member.grandmother, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-
-//   if (member.guardian) {
-//     await Member.findByIdAndUpdate(member.guardian, {
-//       $unset: { guardian: 1 }
-//     });
-//   }
-// };
-
-// export default {
-//   getMembers,
-//   getMemberById,
-//   createMember,
-//   updateMember,
-//   deleteMember,
-//   searchMembers,
-//   getMembersByFamily,
-//   getMemberStats,
-// };
-
-
-// controllers/memberController.js - UPDATED with fix for array fields
-
-// import Member from '../models/Member.js';
-// import Family from '../models/Family.js';
-// import House from '../models/House.js';
-// import FamilyRelationship from '../models/FamilyRelationship.js';
-// import { io } from '../server.js';
-// import cloudinary from '../config/cloudinary.js';
-// import Notification from '../models/Notification.js';
-// import Counter from '../models/Counter.js';
-
-// // Helper function to get sequential member number
-// const getNextMemberNumber = async () => {
-//   const counter = await Counter.findByIdAndUpdate(
-//     'memberNumber',
-//     { $inc: { seq: 1 } },
-//     { new: true, upsert: true }
-//   );
-//   return `MEM-${String(counter.seq).padStart(6, '0')}`;
-// };
-
-// export const getMembers = async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10, search, gender, status, generation, verificationStatus, family, district, province, house } = req.query;
-//     const skip = (page - 1) * limit;
-
-//     let query = {};
-    
-//     // Build search query
-//     if (search) {
-//       query = {
-//         $or: [
-//           { name: { $regex: search, $options: 'i' } },
-//           { surname: { $regex: search, $options: 'i' } },
-//           { memberNumber: { $regex: search, $options: 'i' } },
-//           { rollNumber: { $regex: search, $options: 'i' } },
-//           { vanshaGenerationNumber: { $regex: search, $options: 'i' } },
-//           { phone: { $regex: search, $options: 'i' } },
-//           { email: { $regex: search, $options: 'i' } },
-//           { familyNumber: { $regex: search, $options: 'i' } },
-//           { citizenshipNumber: { $regex: search, $options: 'i' } },
-//         ],
-//       };
-//     }
-
-//     // Apply filters
-//     if (gender) query.gender = gender;
-//     if (status) query.status = status;
-//     if (generation) query.generation = parseInt(generation);
-//     if (verificationStatus) query.verificationStatus = verificationStatus;
-//     if (family) query.family = family;
-//     if (district) query.district = district;
-//     if (province) query.province = province;
-
-//     // If house filter is provided, get all families in that house
-//     if (house) {
-//       const familiesInHouse = await Family.find({ house }).distinct('_id');
-//       query.family = { $in: familiesInHouse };
-//     }
-
-//     const [members, total] = await Promise.all([
-//       Member.find(query)
-//         .populate('family', 'familyName familyNumber vanshaGenerationNumber')
-//         .populate('father mother spouse', 'name photo memberNumber rollNumber')
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(parseInt(limit)),
-//       Member.countDocuments(query),
-//     ]);
-
-//     res.json({
-//       data: members,
-//       pagination: {
-//         page: parseInt(page),
-//         limit: parseInt(limit),
-//         total,
-//         pages: Math.ceil(total / limit),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberById = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id)
-//       .populate('family', 'familyName familyNumber vanshaGenerationNumber clan')
-//       .populate(
-//         'father mother husband wife spouse grandfather grandmother guardian fatherInLaw motherInLaw',
-//         'name photo memberNumber rollNumber'
-//       )
-//       .populate(
-//         'sons daughters elderBrothers youngerBrothers elderSisters youngerSisters grandsons granddaughters sonInLaw daughterInLaw',
-//         'name photo memberNumber rollNumber'
-//       );
-
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     const memberObj = member.toObject();
-    
-//     // Ensure photo URLs are properly formatted
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     photoFields.forEach(field => {
-//       if (memberObj[field]) {
-//         if (!memberObj[field].startsWith('http')) {
-//           if (memberObj[field].includes('cloudinary')) {
-//             memberObj[field] = memberObj[field];
-//           }
-//         }
-//       }
-//     });
-
-//     const relationships = await FamilyRelationship.find({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//       isActive: true,
-//     }).populate('member relatedMember');
-
-//     res.json({
-//       ...memberObj,
-//       relationships,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const createMember = async (req, res) => {
-//   try {
-//     const files = req.files || {};
-
-//     // Check if family is closed
-//     if (req.body.family) {
-//       const family = await Family.findById(req.body.family);
-//       if (family && family.status === 'closed') {
-//         return res.status(403).json({
-//           message: 'Family is closed. Please reopen to add members.'
-//         });
-//       }
-//     }
-
-//     // Get auto-increment member number
-//     const memberNumber = await getNextMemberNumber();
-
-//     // Clean up array fields - remove empty strings
-//     const arrayFields = ['sons', 'daughters', 'elderBrothers', 'youngerBrothers', 'elderSisters', 'youngerSisters', 'grandsons', 'granddaughters', 'sonInLaw', 'daughterInLaw'];
-//     const cleanedBody = { ...req.body };
-//     arrayFields.forEach(field => {
-//       if (cleanedBody[field]) {
-//         if (Array.isArray(cleanedBody[field])) {
-//           cleanedBody[field] = cleanedBody[field].filter(id => id && id.trim() !== '');
-//         }
-//       }
-//     });
-
-//     // Get roll number from family
-//     const family = await Family.findById(req.body.family);
-//     const rollNumber = await getNextRollNumber();
-
-//     const memberData = {
-//       ...cleanedBody,
-//       memberNumber,
-//       rollNumber,
-//       vanshaGenerationNumber: family?.vanshaGenerationNumber || null,
-//       photo: files.photo?.[0]?.path || null,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || null,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || null,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || null,
-//       passportPhoto: files.passportPhoto?.[0]?.path || null,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || null,
-//       createdBy: req.user?._id || null,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     // If family reference provided, update family member count
-//     if (memberData.family) {
-//       await Family.findByIdAndUpdate(memberData.family, {
-//         $inc: { totalMembers: 1 },
-//       });
-//     }
-
-//     const member = new Member(memberData);
-//     await member.save();
-
-//     // Synchronize relationships for created member
-//     await synchronizeRelationships(member);
-
-//     // Create notification
-//     const notification = new Notification({
-//       type: 'member_added',
-//       title: 'New Member Added',
-//       message: `${member.name} (${member.memberNumber}) has been added to the system.`,
-//       data: { memberId: member._id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:created', member);
-//     io.emit('notification:new', notification);
-
-//     res.status(201).json(member);
-//   } catch (error) {
-//     console.error("Create Member Error:", error);
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message || "Unknown Error",
-//     });
-//   }
-// };
-
-// // Helper to get next roll number
-// const getNextRollNumber = async () => {
-//   const counter = await Counter.findByIdAndUpdate(
-//     'rollNumber',
-//     { $inc: { seq: 1 } },
-//     { new: true, upsert: true }
-//   );
-//   return String(counter.seq);
-// };
-
-// export const updateMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     // Check if family is closed
-//     const family = await Family.findById(member.family);
-//     if (family && family.status === 'closed') {
-//       return res.status(403).json({
-//         message: 'Family is closed. Please reopen to update members.'
-//       });
-//     }
-
-//     const files = req.files || {};
-
-//     // Delete old Cloudinary images if new ones are uploaded
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (files[field]?.[0]?.path && member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     // Clean up array fields - remove empty strings and invalid ObjectIds
-//     const arrayFields = ['sons', 'daughters', 'elderBrothers', 'youngerBrothers', 'elderSisters', 'youngerSisters', 'grandsons', 'granddaughters', 'sonInLaw', 'daughterInLaw'];
-//     const cleanedBody = { ...req.body };
-//     arrayFields.forEach(field => {
-//       if (cleanedBody[field]) {
-//         if (Array.isArray(cleanedBody[field])) {
-//           // Filter out empty strings and invalid values
-//           cleanedBody[field] = cleanedBody[field]
-//             .filter(id => id && typeof id === 'string' && id.trim() !== '')
-//             .map(id => id.trim());
-//         } else if (typeof cleanedBody[field] === 'string' && cleanedBody[field].trim() === '') {
-//           // If it's an empty string, set to empty array
-//           cleanedBody[field] = [];
-//         }
-//       }
-//     });
-
-//     const updateData = {
-//       ...cleanedBody,
-//       photo: files.photo?.[0]?.path || member.photo,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || member.citizenshipFront,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || member.citizenshipBack,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || member.nationalIdFront,
-//       passportPhoto: files.passportPhoto?.[0]?.path || member.passportPhoto,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || member.drivingLicensePhoto,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     // Remove undefined values
-//     Object.keys(updateData).forEach(key => {
-//       if (updateData[key] === undefined) {
-//         delete updateData[key];
-//       }
-//     });
-
-//     const updatedMember = await Member.findByIdAndUpdate(
-//       req.params.id,
-//       updateData,
-//       {
-//         new: true,
-//         runValidators: true,
-//         returnDocument: 'after',
-//       }
-//     );
-
-//     // Synchronize relationships for updated member
-//     await synchronizeRelationships(updatedMember, member);
-
-//     const notification = new Notification({
-//       type: "member_updated",
-//       title: "Member Updated",
-//       message: `${updatedMember.name}'s profile has been updated.`,
-//       data: {
-//         memberId: updatedMember._id,
-//       },
-//       createdBy: req.user?._id || null,
-//     });
-
-//     await notification.save();
-
-//     io.emit("member:updated", updatedMember);
-//     io.emit("notification:new", notification);
-
-//     res.json(updatedMember);
-//   } catch (error) {
-//     console.error("Update Member Error:", error);
-
-//     if (error.code === 11000) {
-//       return res.status(400).json({
-//         message: "Duplicate entry",
-//       });
-//     }
-
-//     res.status(400).json({
-//       message: error.message,
-//     });
-//   }
-// };
-
-// export const deleteMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     // Check if family is closed
-//     const family = await Family.findById(member.family);
-//     if (family && family.status === 'closed') {
-//       return res.status(403).json({
-//         message: 'Family is closed. Please reopen to delete members.'
-//       });
-//     }
-
-//     // Delete all images from Cloudinary
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     // Remove member from bidirectional relationships
-//     await removeFromRelationships(member);
-
-//     // Update family member count
-//     if (member.family) {
-//       await Family.findByIdAndUpdate(member.family, {
-//         $inc: { totalMembers: -1 },
-//       });
-//     }
-
-//     // Delete all relationships
-//     await FamilyRelationship.deleteMany({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//     });
-
-//     await Member.findByIdAndDelete(req.params.id);
-
-//     const notification = new Notification({
-//       type: 'member_deleted',
-//       title: 'Member Deleted',
-//       message: `${member.name} has been removed from the system.`,
-//       data: { memberId: req.params.id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:deleted', { id: req.params.id });
-//     io.emit('notification:new', notification);
-
-//     res.json({ message: 'Member deleted successfully' });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const searchMembers = async (req, res) => {
-//   try {
-//     const { query } = req.query;
-//     if (!query) {
-//       return res.status(400).json({ message: 'Search query is required' });
-//     }
-
-//     const members = await Member.find({
-//       $text: { $search: query },
-//     })
-//     .populate('family', 'familyName familyNumber')
-//     .sort({ score: { $meta: 'textScore' } })
-//     .limit(20);
-
-//     res.json(members);
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMembersByFamily = async (req, res) => {
-//   try {
-//     const { familyId } = req.params;
-    
-//     const family = await Family.findById(familyId);
-//     if (!family) {
-//       return res.status(404).json({ message: 'Family not found' });
-//     }
-
-//     const members = await Member.find({ family: familyId })
-//       .select('name photo gender dob isAlive relationship generation memberNumber rollNumber vanshaGenerationNumber')
-//       .sort({ name: 1 });
-
-//     res.json({
-//       family: {
-//         id: family._id,
-//         name: family.familyName,
-//         number: family.familyNumber,
-//         vanshaGenerationNumber: family.vanshaGenerationNumber,
-//         status: family.status,
-//       },
-//       total: members.length,
-//       data: members,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberStats = async (req, res) => {
-//   try {
-//     const [total, byGender, byStatus, byGeneration, byVansha] = await Promise.all([
-//       Member.countDocuments(),
-//       Member.aggregate([
-//         { $group: { _id: '$gender', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$isAlive', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$generation', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$vanshaGenerationNumber', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//         { $limit: 20 },
-//       ]),
-//     ]);
-
-//     res.json({
-//       total,
-//       byGender: byGender.reduce((acc, curr) => {
-//         acc[curr._id || 'unknown'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byStatus: byStatus.reduce((acc, curr) => {
-//         acc[curr._id ? 'living' : 'deceased'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byGeneration: byGeneration.map(g => ({
-//         generation: g._id || 'unknown',
-//         count: g.count,
-//       })),
-//       byVansha: byVansha.map(v => ({
-//         vansha: v._id || 'unknown',
-//         count: v.count,
-//       })),
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // Helper function to synchronize relationships
-// const synchronizeRelationships = async (member, oldMember = null) => {
-//   const memberId = member._id;
-
-//   // If oldMember exists, remove old references
-//   if (oldMember) {
-//     await removeFromRelationships(oldMember);
-//   }
-
-//   // Map of relationship fields to their reverse fields
-//   const relationshipMap = {
-//     father: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     mother: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     husband: { reverseField: 'wife' },
-//     wife: { reverseField: 'husband' },
-//     spouse: { reverseField: 'spouse' },
-//     grandfather: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     grandmother: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     guardian: { reverseField: 'guardian' },
-//   };
-
-//   // Process each relationship field
-//   for (const [field, config] of Object.entries(relationshipMap)) {
-//     if (member[field]) {
-//       const relatedMember = await Member.findById(member[field]);
-//       if (relatedMember) {
-//         let reverseField = config.reverseField;
-//         if (config.reverseCondition) {
-//           reverseField = config.reverseCondition(member);
-//         }
-
-//         const update = {};
-//         if (Array.isArray(relatedMember[reverseField])) {
-//           update[reverseField] = [...new Set([...relatedMember[reverseField], memberId])];
-//         } else {
-//           update[reverseField] = memberId;
-//         }
-
-//         await Member.findByIdAndUpdate(relatedMember._id, update);
-//       }
-//     }
-//   }
-// };
-
-// // Helper function to remove member from bidirectional relationships
-// const removeFromRelationships = async (member) => {
-//   const memberId = member._id;
-
-//   // Remove from father's children
-//   if (member.father) {
-//     await Member.findByIdAndUpdate(member.father, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from mother's children
-//   if (member.mother) {
-//     await Member.findByIdAndUpdate(member.mother, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from husband/wife
-//   if (member.husband) {
-//     await Member.findByIdAndUpdate(member.husband, {
-//       $unset: { wife: 1 }
-//     });
-//   }
-//   if (member.wife) {
-//     await Member.findByIdAndUpdate(member.wife, {
-//       $unset: { husband: 1 }
-//     });
-//   }
-
-//   // Remove from spouse
-//   if (member.spouse) {
-//     await Member.findByIdAndUpdate(member.spouse, {
-//       $unset: { spouse: 1 }
-//     });
-//   }
-
-//   // Remove from grandfather/grandmother
-//   if (member.grandfather) {
-//     await Member.findByIdAndUpdate(member.grandfather, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-//   if (member.grandmother) {
-//     await Member.findByIdAndUpdate(member.grandmother, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from guardian
-//   if (member.guardian) {
-//     await Member.findByIdAndUpdate(member.guardian, {
-//       $unset: { guardian: 1 }
-//     });
-//   }
-// };
-
-// export default {
-//   getMembers,
-//   getMemberById,
-//   createMember,
-//   updateMember,
-//   deleteMember,
-//   searchMembers,
-//   getMembersByFamily,
-//   getMemberStats,
-// };
-
-
-// // controllers/memberController.js - UPDATED
-// import Member from '../models/Member.js';
-// import Family from '../models/Family.js';
-// import House from '../models/House.js';
-// import FamilyRelationship from '../models/FamilyRelationship.js';
-// import { io } from '../server.js';
-// import cloudinary from '../config/cloudinary.js';
-// import Notification from '../models/Notification.js';
-// import Counter from '../models/Counter.js';
-
-// // Helper function to get sequential member number
-// const getNextMemberNumber = async () => {
-//   const counter = await Counter.findByIdAndUpdate(
-//     'memberNumber',
-//     { $inc: { seq: 1 } },
-//     { new: true, upsert: true }
-//   );
-//   return `MEM-${String(counter.seq).padStart(6, '0')}`;
-// };
-
-// export const getMembers = async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10, search, gender, status, generation, verificationStatus, family, district, province, house } = req.query;
-//     const skip = (page - 1) * limit;
-
-//     let query = {};
-    
-//     // Build search query
-//     if (search) {
-//       query = {
-//         $or: [
-//           { name: { $regex: search, $options: 'i' } },
-//           { surname: { $regex: search, $options: 'i' } },
-//           { memberNumber: { $regex: search, $options: 'i' } },
-//           { rollNumber: { $regex: search, $options: 'i' } },
-//           { vanshaGenerationNumber: { $regex: search, $options: 'i' } },
-//           { phone: { $regex: search, $options: 'i' } },
-//           { email: { $regex: search, $options: 'i' } },
-//           { familyNumber: { $regex: search, $options: 'i' } },
-//           { citizenshipNumber: { $regex: search, $options: 'i' } },
-//         ],
-//       };
-//     }
-
-//     // Apply filters
-//     if (gender) query.gender = gender;
-//     if (status) query.status = status;
-//     if (generation) query.generation = parseInt(generation);
-//     if (verificationStatus) query.verificationStatus = verificationStatus;
-//     if (family) query.family = family;
-//     if (district) query.district = district;
-//     if (province) query.province = province;
-
-//     // If house filter is provided, get all families in that house
-//     if (house) {
-//       const familiesInHouse = await Family.find({ house }).distinct('_id');
-//       query.family = { $in: familiesInHouse };
-//     }
-
-//     const [members, total] = await Promise.all([
-//       Member.find(query)
-//         .populate('family', 'familyName familyNumber vanshaGenerationNumber')
-//         .populate('father mother spouse', 'name photo memberNumber rollNumber')
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(parseInt(limit)),
-//       Member.countDocuments(query),
-//     ]);
-
-//     res.json({
-//       data: members,
-//       pagination: {
-//         page: parseInt(page),
-//         limit: parseInt(limit),
-//         total,
-//         pages: Math.ceil(total / limit),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberById = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id)
-//       .populate('family', 'familyName familyNumber vanshaGenerationNumber clan')
-//       .populate(
-//         'father mother husband wife spouse grandfather grandmother guardian fatherInLaw motherInLaw',
-//         'name photo memberNumber rollNumber'
-//       )
-//       .populate(
-//         'sons daughters elderBrothers youngerBrothers elderSisters youngerSisters grandsons granddaughters sonInLaw daughterInLaw',
-//         'name photo memberNumber rollNumber'
-//       );
-
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     const memberObj = member.toObject();
-    
-//     // Ensure photo URLs are properly formatted
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     photoFields.forEach(field => {
-//       if (memberObj[field]) {
-//         if (!memberObj[field].startsWith('http')) {
-//           if (memberObj[field].includes('cloudinary')) {
-//             memberObj[field] = memberObj[field];
-//           }
-//         }
-//       }
-//     });
-
-//     const relationships = await FamilyRelationship.find({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//       isActive: true,
-//     }).populate('member relatedMember');
-
-//     res.json({
-//       ...memberObj,
-//       relationships,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const createMember = async (req, res) => {
-//   try {
-//     const files = req.files || {};
-
-//     // Check if family is closed
-//     if (req.body.family) {
-//       const family = await Family.findById(req.body.family);
-//       if (family && family.status === 'closed') {
-//         return res.status(403).json({
-//           message: 'Family is closed. Please reopen to add members.'
-//         });
-//       }
-//     }
-
-//     // Get auto-increment member number
-//     const memberNumber = await getNextMemberNumber();
-
-//     // Get roll number from family
-//     const family = await Family.findById(req.body.family);
-//     const rollNumber = await getNextRollNumber();
-
-//     const memberData = {
-//       ...req.body,
-//       memberNumber,
-//       rollNumber,
-//       vanshaGenerationNumber: family?.vanshaGenerationNumber || null,
-//       photo: files.photo?.[0]?.path || null,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || null,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || null,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || null,
-//       passportPhoto: files.passportPhoto?.[0]?.path || null,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || null,
-//       createdBy: req.user?._id || null,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     // If family reference provided, update family member count
-//     if (memberData.family) {
-//       await Family.findByIdAndUpdate(memberData.family, {
-//         $inc: { totalMembers: 1 },
-//       });
-//     }
-
-//     const member = new Member(memberData);
-//     await member.save();
-
-//     // Synchronize relationships for created member
-//     await synchronizeRelationships(member);
-
-//     // Create notification
-//     const notification = new Notification({
-//       type: 'member_added',
-//       title: 'New Member Added',
-//       message: `${member.name} (${member.memberNumber}) has been added to the system.`,
-//       data: { memberId: member._id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:created', member);
-//     io.emit('notification:new', notification);
-
-//     res.status(201).json(member);
-//   } catch (error) {
-//     console.error("Create Member Error:", error);
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message || "Unknown Error",
-//     });
-//   }
-// };
-
-// // Helper to get next roll number
-// const getNextRollNumber = async () => {
-//   const counter = await Counter.findByIdAndUpdate(
-//     'rollNumber',
-//     { $inc: { seq: 1 } },
-//     { new: true, upsert: true }
-//   );
-//   return String(counter.seq);
-// };
-
-// export const updateMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     // Check if family is closed
-//     const family = await Family.findById(member.family);
-//     if (family && family.status === 'closed') {
-//       return res.status(403).json({
-//         message: 'Family is closed. Please reopen to update members.'
-//       });
-//     }
-
-//     const files = req.files || {};
-
-//     // Delete old Cloudinary images if new ones are uploaded
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (files[field]?.[0]?.path && member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     const updateData = {
-//       ...req.body,
-//       photo: files.photo?.[0]?.path || member.photo,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || member.citizenshipFront,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || member.citizenshipBack,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || member.nationalIdFront,
-//       passportPhoto: files.passportPhoto?.[0]?.path || member.passportPhoto,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || member.drivingLicensePhoto,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     const updatedMember = await Member.findByIdAndUpdate(
-//       req.params.id,
-//       updateData,
-//       {
-//         new: true,
-//         runValidators: true,
-//       }
-//     );
-
-//     // Synchronize relationships for updated member
-//     await synchronizeRelationships(updatedMember, member);
-
-//     const notification = new Notification({
-//       type: "member_updated",
-//       title: "Member Updated",
-//       message: `${updatedMember.name}'s profile has been updated.`,
-//       data: {
-//         memberId: updatedMember._id,
-//       },
-//       createdBy: req.user?._id || null,
-//     });
-
-//     await notification.save();
-
-//     io.emit("member:updated", updatedMember);
-//     io.emit("notification:new", notification);
-
-//     res.json(updatedMember);
-//   } catch (error) {
-//     console.error("Update Member Error:", error);
-
-//     if (error.code === 11000) {
-//       return res.status(400).json({
-//         message: "Duplicate entry",
-//       });
-//     }
-
-//     res.status(400).json({
-//       message: error.message,
-//     });
-//   }
-// };
-
-// export const deleteMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     // Check if family is closed
-//     const family = await Family.findById(member.family);
-//     if (family && family.status === 'closed') {
-//       return res.status(403).json({
-//         message: 'Family is closed. Please reopen to delete members.'
-//       });
-//     }
-
-//     // Delete all images from Cloudinary
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     // Remove member from bidirectional relationships
-//     await removeFromRelationships(member);
-
-//     // Update family member count
-//     if (member.family) {
-//       await Family.findByIdAndUpdate(member.family, {
-//         $inc: { totalMembers: -1 },
-//       });
-//     }
-
-//     // Delete all relationships
-//     await FamilyRelationship.deleteMany({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//     });
-
-//     await Member.findByIdAndDelete(req.params.id);
-
-//     const notification = new Notification({
-//       type: 'member_deleted',
-//       title: 'Member Deleted',
-//       message: `${member.name} has been removed from the system.`,
-//       data: { memberId: req.params.id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:deleted', { id: req.params.id });
-//     io.emit('notification:new', notification);
-
-//     res.json({ message: 'Member deleted successfully' });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const searchMembers = async (req, res) => {
-//   try {
-//     const { query } = req.query;
-//     if (!query) {
-//       return res.status(400).json({ message: 'Search query is required' });
-//     }
-
-//     const members = await Member.find({
-//       $text: { $search: query },
-//     })
-//     .populate('family', 'familyName familyNumber')
-//     .sort({ score: { $meta: 'textScore' } })
-//     .limit(20);
-
-//     res.json(members);
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMembersByFamily = async (req, res) => {
-//   try {
-//     const { familyId } = req.params;
-    
-//     const family = await Family.findById(familyId);
-//     if (!family) {
-//       return res.status(404).json({ message: 'Family not found' });
-//     }
-
-//     const members = await Member.find({ family: familyId })
-//       .select('name photo gender dob isAlive relationship generation memberNumber rollNumber vanshaGenerationNumber')
-//       .sort({ name: 1 });
-
-//     res.json({
-//       family: {
-//         id: family._id,
-//         name: family.familyName,
-//         number: family.familyNumber,
-//         vanshaGenerationNumber: family.vanshaGenerationNumber,
-//         status: family.status,
-//       },
-//       total: members.length,
-//       data: members,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberStats = async (req, res) => {
-//   try {
-//     const [total, byGender, byStatus, byGeneration, byVansha] = await Promise.all([
-//       Member.countDocuments(),
-//       Member.aggregate([
-//         { $group: { _id: '$gender', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$isAlive', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$generation', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$vanshaGenerationNumber', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//         { $limit: 20 },
-//       ]),
-//     ]);
-
-//     res.json({
-//       total,
-//       byGender: byGender.reduce((acc, curr) => {
-//         acc[curr._id || 'unknown'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byStatus: byStatus.reduce((acc, curr) => {
-//         acc[curr._id ? 'living' : 'deceased'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byGeneration: byGeneration.map(g => ({
-//         generation: g._id || 'unknown',
-//         count: g.count,
-//       })),
-//       byVansha: byVansha.map(v => ({
-//         vansha: v._id || 'unknown',
-//         count: v.count,
-//       })),
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // Helper function to synchronize relationships
-// const synchronizeRelationships = async (member, oldMember = null) => {
-//   const memberId = member._id;
-
-//   // If oldMember exists, remove old references
-//   if (oldMember) {
-//     await removeFromRelationships(oldMember);
-//   }
-
-//   // Map of relationship fields to their reverse fields
-//   const relationshipMap = {
-//     father: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     mother: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     husband: { reverseField: 'wife' },
-//     wife: { reverseField: 'husband' },
-//     spouse: { reverseField: 'spouse' },
-//     grandfather: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     grandmother: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     guardian: { reverseField: 'guardian' },
-//   };
-
-//   // Process each relationship field
-//   for (const [field, config] of Object.entries(relationshipMap)) {
-//     if (member[field]) {
-//       const relatedMember = await Member.findById(member[field]);
-//       if (relatedMember) {
-//         let reverseField = config.reverseField;
-//         if (config.reverseCondition) {
-//           reverseField = config.reverseCondition(member);
-//         }
-
-//         const update = {};
-//         if (Array.isArray(relatedMember[reverseField])) {
-//           update[reverseField] = [...new Set([...relatedMember[reverseField], memberId])];
-//         } else {
-//           update[reverseField] = memberId;
-//         }
-
-//         await Member.findByIdAndUpdate(relatedMember._id, update);
-//       }
-//     }
-//   }
-// };
-
-// // Helper function to remove member from bidirectional relationships
-// const removeFromRelationships = async (member) => {
-//   const memberId = member._id;
-
-//   // Remove from father's children
-//   if (member.father) {
-//     await Member.findByIdAndUpdate(member.father, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from mother's children
-//   if (member.mother) {
-//     await Member.findByIdAndUpdate(member.mother, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from husband/wife
-//   if (member.husband) {
-//     await Member.findByIdAndUpdate(member.husband, {
-//       $unset: { wife: 1 }
-//     });
-//   }
-//   if (member.wife) {
-//     await Member.findByIdAndUpdate(member.wife, {
-//       $unset: { husband: 1 }
-//     });
-//   }
-
-//   // Remove from spouse
-//   if (member.spouse) {
-//     await Member.findByIdAndUpdate(member.spouse, {
-//       $unset: { spouse: 1 }
-//     });
-//   }
-
-//   // Remove from grandfather/grandmother
-//   if (member.grandfather) {
-//     await Member.findByIdAndUpdate(member.grandfather, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-//   if (member.grandmother) {
-//     await Member.findByIdAndUpdate(member.grandmother, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from guardian
-//   if (member.guardian) {
-//     await Member.findByIdAndUpdate(member.guardian, {
-//       $unset: { guardian: 1 }
-//     });
-//   }
-// };
-
-// export default {
-//   getMembers,
-//   getMemberById,
-//   createMember,
-//   updateMember,
-//   deleteMember,
-//   searchMembers,
-//   getMembersByFamily,
-//   getMemberStats,
-// };
-
-
-
-// // src/controllers/memberController.js
-
-// import Member from '../models/Member.js';
-// import FamilyRelationship from '../models/FamilyRelationship.js';
-// import Family from '../models/Family.js';
-// import { io } from '../server.js';
-// import cloudinary from '../config/cloudinary.js';
-// import Notification from '../models/Notification.js';
-// import Counter from '../models/Counter.js';
-
-// // Helper function to get sequential member number
-// const getNextMemberNumber = async () => {
-//   const counter = await Counter.findByIdAndUpdate(
-//     'memberNumber',
-//     { $inc: { seq: 1 } },
-//     { new: true, upsert: true }
-//   );
-//   return `MEM-${String(counter.seq).padStart(6, '0')}`;
-// };
-
-// export const getMembers = async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10, search, gender, status, generation, verificationStatus, family, district, province } = req.query;
-//     const skip = (page - 1) * limit;
-
-//     let query = {};
-    
-//     // Build search query
-//     if (search) {
-//       query = {
-//         $or: [
-//           { name: { $regex: search, $options: 'i' } },
-//           { surname: { $regex: search, $options: 'i' } },
-//           { memberNumber: { $regex: search, $options: 'i' } },
-//           { phone: { $regex: search, $options: 'i' } },
-//           { email: { $regex: search, $options: 'i' } },
-//           { familyNumber: { $regex: search, $options: 'i' } },
-//           { citizenshipNumber: { $regex: search, $options: 'i' } },
-//         ],
-//       };
-//     }
-
-//     // Apply filters
-//     if (gender) query.gender = gender;
-//     if (status) query.status = status;
-//     if (generation) query.generation = parseInt(generation);
-//     if (verificationStatus) query.verificationStatus = verificationStatus;
-//     if (family) query.family = family;
-//     if (district) query.district = district;
-//     if (province) query.province = province;
-
-//     const [members, total] = await Promise.all([
-//       Member.find(query)
-//         .populate('family', 'familyName familyNumber')
-//         .populate('father mother spouse', 'name photo memberNumber')
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(parseInt(limit)),
-//       Member.countDocuments(query),
-//     ]);
-
-//     res.json({
-//       data: members,
-//       pagination: {
-//         page: parseInt(page),
-//         limit: parseInt(limit),
-//         total,
-//         pages: Math.ceil(total / limit),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberById = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id)
-//       .populate('family', 'familyName familyNumber clan')
-//       .populate(
-//         'father mother husband wife spouse grandfather grandmother guardian fatherInLaw motherInLaw',
-//         'name photo memberNumber'
-//       )
-//       .populate(
-//         'sons daughters elderBrothers youngerBrothers elderSisters youngerSisters grandsons granddaughters sonInLaw daughterInLaw',
-//         'name photo memberNumber'
-//       );
-
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     const memberObj = member.toObject();
-    
-//     // Ensure photo URLs are properly formatted
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     photoFields.forEach(field => {
-//       if (memberObj[field]) {
-//         if (!memberObj[field].startsWith('http')) {
-//           if (memberObj[field].includes('cloudinary')) {
-//             memberObj[field] = memberObj[field];
-//           }
-//         }
-//       }
-//     });
-
-//     const relationships = await FamilyRelationship.find({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//       isActive: true,
-//     }).populate('member relatedMember');
-
-//     res.json({
-//       ...memberObj,
-//       relationships,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const createMember = async (req, res) => {
-//   try {
-//     const files = req.files || {};
-
-//     // Get auto-increment member number
-//     const memberNumber = await getNextMemberNumber();
-
-//     const memberData = {
-//       ...req.body,
-//       memberNumber,
-//       photo: files.photo?.[0]?.path || null,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || null,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || null,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || null,
-//       passportPhoto: files.passportPhoto?.[0]?.path || null,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || null,
-//       createdBy: req.user?._id || null,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     // If family reference provided, update family member count
-//     if (memberData.family) {
-//       await Family.findByIdAndUpdate(memberData.family, {
-//         $inc: { totalMembers: 1 },
-//       });
-//     }
-
-//     const member = new Member(memberData);
-//     await member.save();
-
-//     // Synchronize relationships for created member
-//     await synchronizeRelationships(member);
-
-//     // Create notification
-//     const notification = new Notification({
-//       type: 'member_added',
-//       title: 'New Member Added',
-//       message: `${member.name} (${member.memberNumber}) has been added to the system.`,
-//       data: { memberId: member._id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:created', member);
-//     io.emit('notification:new', notification);
-
-//     res.status(201).json(member);
-//   } catch (error) {
-//     console.error("Create Member Error:", error);
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message || "Unknown Error",
-//     });
-//   }
-// };
-
-// export const updateMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-
-//     if (!member) {
-//       return res.status(404).json({
-//         message: "Member not found",
-//       });
-//     }
-
-//     const files = req.files || {};
-
-//     // Delete old Cloudinary images if new ones are uploaded
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (files[field]?.[0]?.path && member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     const updateData = {
-//       ...req.body,
-//       photo: files.photo?.[0]?.path || member.photo,
-//       citizenshipFront: files.citizenshipFront?.[0]?.path || member.citizenshipFront,
-//       citizenshipBack: files.citizenshipBack?.[0]?.path || member.citizenshipBack,
-//       nationalIdFront: files.nationalIdFront?.[0]?.path || member.nationalIdFront,
-//       passportPhoto: files.passportPhoto?.[0]?.path || member.passportPhoto,
-//       drivingLicensePhoto: files.drivingLicensePhoto?.[0]?.path || member.drivingLicensePhoto,
-//       updatedBy: req.user?._id || null,
-//     };
-
-//     const updatedMember = await Member.findByIdAndUpdate(
-//       req.params.id,
-//       updateData,
-//       {
-//         new: true,
-//         runValidators: true,
-//       }
-//     );
-
-//     // Synchronize relationships for updated member
-//     await synchronizeRelationships(updatedMember, member);
-
-//     const notification = new Notification({
-//       type: "member_updated",
-//       title: "Member Updated",
-//       message: `${updatedMember.name}'s profile has been updated.`,
-//       data: {
-//         memberId: updatedMember._id,
-//       },
-//       createdBy: req.user?._id || null,
-//     });
-
-//     await notification.save();
-
-//     io.emit("member:updated", updatedMember);
-//     io.emit("notification:new", notification);
-
-//     res.json(updatedMember);
-//   } catch (error) {
-//     console.error("Update Member Error:", error);
-
-//     if (error.code === 11000) {
-//       return res.status(400).json({
-//         message: "Duplicate entry",
-//       });
-//     }
-
-//     res.status(400).json({
-//       message: error.message,
-//     });
-//   }
-// };
-
-// export const deleteMember = async (req, res) => {
-//   try {
-//     const member = await Member.findById(req.params.id);
-//     if (!member) {
-//       return res.status(404).json({ message: 'Member not found' });
-//     }
-
-//     // Delete all images from Cloudinary
-//     const photoFields = ['photo', 'citizenshipFront', 'citizenshipBack', 'nationalIdFront', 'passportPhoto', 'drivingLicensePhoto'];
-//     for (const field of photoFields) {
-//       if (member[field]) {
-//         const publicId = member[field].split('/').pop().split('.')[0];
-//         await cloudinary.uploader.destroy(publicId).catch(() => {});
-//       }
-//     }
-
-//     // Remove member from bidirectional relationships
-//     await removeFromRelationships(member);
-
-//     // Update family member count
-//     if (member.family) {
-//       await Family.findByIdAndUpdate(member.family, {
-//         $inc: { totalMembers: -1 },
-//       });
-//     }
-
-//     // Delete all relationships
-//     await FamilyRelationship.deleteMany({
-//       $or: [
-//         { member: member._id },
-//         { relatedMember: member._id },
-//       ],
-//     });
-
-//     await Member.findByIdAndDelete(req.params.id);
-
-//     const notification = new Notification({
-//       type: 'member_deleted',
-//       title: 'Member Deleted',
-//       message: `${member.name} has been removed from the system.`,
-//       data: { memberId: req.params.id },
-//       createdBy: req.user?._id || null,
-//     });
-//     await notification.save();
-
-//     io.emit('member:deleted', { id: req.params.id });
-//     io.emit('notification:new', notification);
-
-//     res.json({ message: 'Member deleted successfully' });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const searchMembers = async (req, res) => {
-//   try {
-//     const { query } = req.query;
-//     if (!query) {
-//       return res.status(400).json({ message: 'Search query is required' });
-//     }
-
-//     const members = await Member.find({
-//       $text: { $search: query },
-//     })
-//     .populate('family', 'familyName familyNumber')
-//     .sort({ score: { $meta: 'textScore' } })
-//     .limit(20);
-
-//     res.json(members);
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMembersByFamily = async (req, res) => {
-//   try {
-//     const { familyId } = req.params;
-    
-//     const family = await Family.findById(familyId);
-//     if (!family) {
-//       return res.status(404).json({ message: 'Family not found' });
-//     }
-
-//     const members = await Member.find({ family: familyId })
-//       .select('name photo gender dob isAlive relationship generation memberNumber')
-//       .sort({ name: 1 });
-
-//     res.json({
-//       family: {
-//         id: family._id,
-//         name: family.familyName,
-//         number: family.familyNumber,
-//       },
-//       total: members.length,
-//       data: members,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getMemberStats = async (req, res) => {
-//   try {
-//     const [total, byGender, byStatus, byGeneration] = await Promise.all([
-//       Member.countDocuments(),
-//       Member.aggregate([
-//         { $group: { _id: '$gender', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$isAlive', count: { $sum: 1 } } },
-//       ]),
-//       Member.aggregate([
-//         { $group: { _id: '$generation', count: { $sum: 1 } } },
-//         { $sort: { _id: 1 } },
-//       ]),
-//     ]);
-
-//     res.json({
-//       total,
-//       byGender: byGender.reduce((acc, curr) => {
-//         acc[curr._id || 'unknown'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byStatus: byStatus.reduce((acc, curr) => {
-//         acc[curr._id ? 'living' : 'deceased'] = curr.count;
-//         return acc;
-//       }, {}),
-//       byGeneration: byGeneration.map(g => ({
-//         generation: g._id || 'unknown',
-//         count: g.count,
-//       })),
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // Helper function to synchronize relationships
-// const synchronizeRelationships = async (member, oldMember = null) => {
-//   const memberId = member._id;
-
-//   // If oldMember exists, remove old references
-//   if (oldMember) {
-//     await removeFromRelationships(oldMember);
-//   }
-
-//   // Map of relationship fields to their reverse fields
-//   const relationshipMap = {
-//     father: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     mother: { reverseField: 'sons', reverseCondition: (m) => m.gender === 'male' ? 'sons' : 'daughters' },
-//     husband: { reverseField: 'wife' },
-//     wife: { reverseField: 'husband' },
-//     spouse: { reverseField: 'spouse' },
-//     grandfather: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     grandmother: { reverseField: 'grandsons', reverseCondition: (m) => m.gender === 'male' ? 'grandsons' : 'granddaughters' },
-//     guardian: { reverseField: 'guardian' },
-//   };
-
-//   // Process each relationship field
-//   for (const [field, config] of Object.entries(relationshipMap)) {
-//     if (member[field]) {
-//       const relatedMember = await Member.findById(member[field]);
-//       if (relatedMember) {
-//         let reverseField = config.reverseField;
-//         if (config.reverseCondition) {
-//           reverseField = config.reverseCondition(member);
-//         }
-
-//         const update = {};
-//         if (Array.isArray(relatedMember[reverseField])) {
-//           update[reverseField] = [...new Set([...relatedMember[reverseField], memberId])];
-//         } else {
-//           update[reverseField] = memberId;
-//         }
-
-//         await Member.findByIdAndUpdate(relatedMember._id, update);
-//       }
-//     }
-//   }
-// };
-
-// // Helper function to remove member from bidirectional relationships
-// const removeFromRelationships = async (member) => {
-//   const memberId = member._id;
-
-//   // Remove from father's children
-//   if (member.father) {
-//     await Member.findByIdAndUpdate(member.father, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from mother's children
-//   if (member.mother) {
-//     await Member.findByIdAndUpdate(member.mother, {
-//       $pull: {
-//         sons: memberId,
-//         daughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from husband/wife
-//   if (member.husband) {
-//     await Member.findByIdAndUpdate(member.husband, {
-//       $unset: { wife: 1 }
-//     });
-//   }
-//   if (member.wife) {
-//     await Member.findByIdAndUpdate(member.wife, {
-//       $unset: { husband: 1 }
-//     });
-//   }
-
-//   // Remove from spouse
-//   if (member.spouse) {
-//     await Member.findByIdAndUpdate(member.spouse, {
-//       $unset: { spouse: 1 }
-//     });
-//   }
-
-//   // Remove from grandfather/grandmother
-//   if (member.grandfather) {
-//     await Member.findByIdAndUpdate(member.grandfather, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-//   if (member.grandmother) {
-//     await Member.findByIdAndUpdate(member.grandmother, {
-//       $pull: {
-//         grandsons: memberId,
-//         granddaughters: memberId
-//       }
-//     });
-//   }
-
-//   // Remove from guardian
-//   if (member.guardian) {
-//     await Member.findByIdAndUpdate(member.guardian, {
-//       $unset: { guardian: 1 }
-//     });
-//   }
-// };
-
-// export default {
-//   getMembers,
-//   getMemberById,
-//   createMember,
-//   updateMember,
-//   deleteMember,
-//   searchMembers,
-//   getMembersByFamily,
-//   getMemberStats,
-// };

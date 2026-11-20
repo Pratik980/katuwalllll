@@ -22,3 +22,8 @@ export const downloadBackup = async ({ id, fileName }) => {
   });
   return { blob: response.data, fileName };
 };
+
+export const restoreBackup = async (id) => {
+  const { data } = await axios.post(`/backup/restore/${id}`, { confirm: 'RESTORE' });
+  return data;
+};
