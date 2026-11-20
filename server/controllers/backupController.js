@@ -8,15 +8,26 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const BACKUP_DIR = path.join(__dirname, '../../backups');
+import os from 'os';
 
-// Ensure backup directory exists
-if (!fs.existsSync(BACKUP_DIR)) {
-  fs.mkdirSync(BACKUP_DIR, { recursive: true });
-}
+const BACKUP_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'backups')
+  : path.join(__dirname, '../../backups');
+
+// Helper to ensure backup directory exists when creating a backup
+const ensureBackupDir = () => {
+  try {
+    if (!fs.existsSync(BACKUP_DIR)) {
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    }
+  } catch (err) {
+    console.warn('Backup directory initialization note:', err.message);
+  }
+};
 
 export const createBackup = async (req, res) => {
   try {
+    ensureBackupDir();
     const db = mongoose.connection.db;
     const collections = await db.listCollections().toArray();
     

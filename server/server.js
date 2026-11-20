@@ -171,6 +171,16 @@ const expensiveRateLimit = (max) => rateLimit({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+app.use(async (req, res, next) => {
+  if (req.path === '/health' || process.env.NODE_ENV === 'test') return next();
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 
@@ -286,28 +296,29 @@ io.on('connection', (socket) => {
   });
 });
 
-// Export io for use in controllers
-export { io };
+// Export io and app
+export { io, app };
+export default app;
 
 // Start server
 const PORT = process.env.PORT || 5000;
 
-connectDB()
-  .then(() => {
-    httpServer.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`📡 API URL: http://localhost:${PORT}/api`);
-      // console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'https://katuwalbanshabatika.netlify.app'}`)
-      
-      console.log(`📁 JSON body limit: 10MB`);
+if (!process.env.VERCEL) {
+  connectDB()
+    .then(() => {
+      httpServer.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`📡 API URL: http://localhost:${PORT}/api`);
+        console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'https://katuwalbanshabatika.netlify.app'}`);
+        console.log(`📁 JSON body limit: 10MB`);
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to start server:', error);
+      process.exit(1);
     });
-  })
-  .catch((error) => {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  });
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

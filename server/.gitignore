@@ -38,3 +38,6 @@ _backup_*/
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.env*
