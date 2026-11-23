@@ -293,6 +293,28 @@ io.on('connection', (socket) => {
   socket.on('join', joinChatRoom);
   socket.on('leave', leaveChatRoom);
 
+  socket.on('typing:start', (payload) => {
+    const room = resolveChatRoom(payload);
+    if (!room) return;
+    socket.to(room).emit('typing:status', {
+      room,
+      userId: user.id,
+      userName: payload?.userName || 'Someone',
+      isTyping: true,
+    });
+  });
+
+  socket.on('typing:stop', (payload) => {
+    const room = resolveChatRoom(payload);
+    if (!room) return;
+    socket.to(room).emit('typing:status', {
+      room,
+      userId: user.id,
+      userName: payload?.userName || 'Someone',
+      isTyping: false,
+    });
+  });
+
   socket.on('error', (error) => {
     console.error('Socket error:', error);
   });

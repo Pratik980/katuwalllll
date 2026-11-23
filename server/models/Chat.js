@@ -22,10 +22,47 @@ const chatSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  senderRole: {
+    type: String,
+    default: 'user',
+  },
   message: {
     type: String,
     required: true,
     trim: true,
+  },
+  replyTo: {
+    messageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Chat',
+      default: null,
+    },
+    senderName: {
+      type: String,
+      default: null,
+    },
+    messageText: {
+      type: String,
+      default: null,
+    },
+  },
+  attachments: [{
+    url: String,
+    fileType: String,
+    name: String,
+    size: Number,
+  }],
+  reactions: [{
+    emoji: String,
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    userName: String,
+  }],
+  isDeleted: {
+    type: Boolean,
+    default: false,
   },
   isRead: {
     type: Boolean,

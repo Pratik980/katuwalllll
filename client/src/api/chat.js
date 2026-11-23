@@ -16,6 +16,23 @@ export const sendMessage = async (messageData) => {
   return data;
 };
 
+export const addReaction = async (messageId, emoji) => {
+  const { data } = await axios.put(`/chat/messages/${messageId}/react`, { emoji });
+  return data;
+};
+
+export const deleteChatMessage = async (messageId) => {
+  const { data } = await axios.delete(`/chat/messages/${messageId}`);
+  return data;
+};
+
+export const uploadChatAttachment = async (formData) => {
+  const { data } = await axios.post('/chat/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+};
+
 export const markMessagesAsRead = async (room) => {
   const { data } = await axios.put(`/chat/rooms/${room}/read`);
   return data;
