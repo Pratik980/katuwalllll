@@ -24,6 +24,7 @@ import chatRoutes from './routes/chatRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import backupRoutes from './routes/backupRoutes.js';
 import organizationRoutes from './routes/organizationRoutes.js';
+import { getOrganization } from './controllers/organizationController.js';
 import systemRoutes from './routes/systemRoutes.js';
 import memberRoutes from './routes/memberRoutes.js';
 import familyRoutes from './routes/familyRoutes.js';
@@ -187,6 +188,7 @@ app.use(async (req, res, next) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.get('/api/organization', getOrganization);
 
 // Every other API endpoint requires a valid session and CSRF token.
 app.use('/api', authenticate);
