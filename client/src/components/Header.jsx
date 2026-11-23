@@ -8,6 +8,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
+import { useOrganization } from "../context/OrganizationContext";
 import { getUnreadCount } from "../api/notifications";
 
 // Which page is open, by the first part of the address
@@ -27,6 +28,7 @@ export default function Header({ toggleSidebar }) {
   const location = useLocation();
   const { language, setLanguage, t } = useLanguage();
   const { user } = useAuth();
+  const { logo, name: orgName } = useOrganization();
   const [search, setSearch] = useState("");
 
   const { data: unread } = useQuery({
@@ -61,13 +63,26 @@ export default function Header({ toggleSidebar }) {
             <Bars3Icon className="w-6 h-6 text-slate-700" />
           </button>
 
-          <div className="hidden md:block">
-            <h2 className="text-xl font-bold text-slate-800">
-              {pageKey ? t(pageKey) : t('app_name')}
-            </h2>
-            <p className="text-sm text-slate-500">
-              {t('welcome_back')} 👋
-            </p>
+          <div className="flex items-center gap-3">
+            {logo ? (
+              <img
+                src={logo}
+                alt={orgName || t('app_name')}
+                className="h-10 w-10 rounded-xl object-contain border border-slate-200 bg-white p-0.5 shadow-sm"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                KB
+              </div>
+            )}
+            <div className="hidden sm:block">
+              <h2 className="text-lg font-bold text-slate-800 leading-tight">
+                {pageKey ? t(pageKey) : (orgName || t('app_name'))}
+              </h2>
+              <p className="text-xs text-slate-500">
+                {t('welcome_back')} 👋
+              </p>
+            </div>
           </div>
         </div>
 

@@ -4,9 +4,16 @@ import { io } from '../server.js';
 
 export const getOrganization = async (req, res) => {
   try {
-    const organization = await Organization.findOne();
+    let organization = await Organization.findOne();
     if (!organization) {
-      return res.status(404).json({ message: 'Organization not found' });
+      try {
+        organization = await Organization.create({
+          name: 'Katuwal Bansha',
+          description: 'Katuwal Bansha Official Portal',
+        });
+      } catch {
+        organization = (await Organization.findOne()) || { name: 'Katuwal Bansha', logo: null };
+      }
     }
     res.json(organization);
   } catch (error) {
@@ -28,7 +35,7 @@ export const createOrganization = async (req, res) => {
     });
 
     await organization.save();
-    io.to('role:admin').emit('organization:updated', organization);
+    if (io) io.to('role:admin').emit('organization:updated', organization);
     res.status(201).json(organization);
   } catch (error) {
     if (error.code === 11000) {
@@ -40,15 +47,27 @@ export const createOrganization = async (req, res) => {
 
 export const updateOrganization = async (req, res) => {
   try {
-    const organization = await Organization.findOne();
+    let organization = await Organization.findOne();
     if (!organization) {
-      return res.status(404).json({ message: 'Organization not found' });
+      organization = new Organization({
+        name: 'Katuwal Bansha',
+        ...req.body,
+        logo: req.file?.path || null,
+        createdBy: req.user?._id || null,
+      });
+      await organization.save();
+      if (io) io.to('role:admin').emit('organization:updated', organization);
+      return res.json(organization);
     }
 
     // Delete old logo if new one uploaded
-    if (req.file && organization.logo) {
-      const publicId = organization.logo.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(publicId);
+    if (req.file && organization.logo && typeof organization.logo === 'string' && organization.logo.includes('cloudinary')) {
+      try {
+        const publicId = organization.logo.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(publicId);
+      } catch (err) {
+        console.warn('Failed to delete old logo from Cloudinary:', err.message);
+      }
     }
 
     const updatedOrg = await Organization.findByIdAndUpdate(
@@ -61,7 +80,7 @@ export const updateOrganization = async (req, res) => {
       { returnDocument: 'after', runValidators: true }
     );
 
-    io.to('role:admin').emit('organization:updated', updatedOrg);
+    if (io) io.to('role:admin').emit('organization:updated', updatedOrg);
     res.json(updatedOrg);
   } catch (error) {
     if (error.code === 11000) {
@@ -79,13 +98,17 @@ export const deleteOrganization = async (req, res) => {
     }
 
     // Delete logo from Cloudinary
-    if (organization.logo) {
-      const publicId = organization.logo.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(publicId);
+    if (organization.logo && typeof organization.logo === 'string' && organization.logo.includes('cloudinary')) {
+      try {
+        const publicId = organization.logo.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(publicId);
+      } catch (err) {
+        console.warn('Failed to delete logo from Cloudinary:', err.message);
+      }
     }
 
     await Organization.deleteOne({ _id: organization._id });
-    io.to('role:admin').emit('organization:deleted', { id: organization._id });
+    if (io) io.to('role:admin').emit('organization:deleted', { id: organization._id });
     res.json({ message: 'Organization deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -98,22 +121,31 @@ export const uploadOrganizationLogo = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const organization = await Organization.findOne();
+    let organization = await Organization.findOne();
     if (!organization) {
-      return res.status(404).json({ message: 'Organization not found' });
+      organization = new Organization({
+        name: 'Katuwal Bansha',
+        logo: req.file.path,
+        createdBy: req.user?._id || null,
+      });
+    } else {
+      // Delete old logo safely if on Cloudinary
+      if (organization.logo && typeof organization.logo === 'string' && organization.logo.includes('cloudinary')) {
+        try {
+          const publicId = organization.logo.split('/').pop().split('.')[0];
+          await cloudinary.uploader.destroy(publicId);
+        } catch (err) {
+          console.warn('Failed to delete old logo from Cloudinary:', err.message);
+        }
+      }
+      organization.logo = req.file.path;
+      organization.updatedBy = req.user?._id || null;
     }
 
-    // Delete old logo
-    if (organization.logo) {
-      const publicId = organization.logo.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(publicId);
-    }
-
-    organization.logo = req.file.path;
     await organization.save();
 
-    io.to('role:admin').emit('organization:updated', organization);
-    res.json({ logo: req.file.path });
+    if (io) io.to('role:admin').emit('organization:updated', organization);
+    res.json({ logo: organization.logo, organization });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

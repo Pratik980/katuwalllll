@@ -23,11 +23,7 @@ const getFormSubmitConfig = () => {
 const canDeliver = () => {
   const smtp = getSmtpConfig();
   const formsubmit = getFormSubmitConfig();
-  if (smtp.configured || formsubmit.enabled) return true;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Email delivery is not configured. Set SMTP/EMAIL_* settings or configure FORMSUBMIT_ENDPOINT/FORMSUBMIT_EMAIL with EMAIL_PROVIDER=formsubmit.');
-  }
-  return false;
+  return Boolean(smtp.configured || formsubmit.enabled);
 };
 
 const createTransporter = (config) => nodemailer.createTransport({
@@ -82,8 +78,8 @@ const deliverViaFormSubmit = async ({ to, subject, text, html }) => {
 
 const deliver = async ({ to, subject, text, html, devLog }) => {
   if (!canDeliver()) {
-    console.warn(devLog || `[dev] Email not sent to ${to}: ${subject}\n${text}`);
-    return { delivered: false, dev: true };
+    console.warn(devLog || `[authEmail] SMTP/email provider is not configured. Delivery skipped for ${to}: ${subject}`);
+    return { delivered: false, unconfigured: true };
   }
 
   const formsubmit = getFormSubmitConfig();
@@ -94,9 +90,7 @@ const deliver = async ({ to, subject, text, html, devLog }) => {
       console.error('[email] FormSubmit delivery failed:', error.message);
       const smtp = getSmtpConfig();
       if (!smtp.configured) {
-        if (process.env.NODE_ENV === 'production') throw error;
-        console.warn(devLog || `[dev] FormSubmit failed and SMTP unavailable for ${to}: ${subject}\n${text}`);
-        return { delivered: false, dev: true, error: error.message };
+        return { delivered: false, error: error.message };
       }
       // Fall through to SMTP if configured
     }
@@ -104,13 +98,18 @@ const deliver = async ({ to, subject, text, html, devLog }) => {
 
   const smtp = getSmtpConfig();
   if (smtp.configured) {
-    const transporter = createTransporter(smtp);
-    await transporter.sendMail({ from: smtp.from, to, subject, text, html });
-    return { delivered: true, provider: 'smtp' };
+    try {
+      const transporter = createTransporter(smtp);
+      await transporter.sendMail({ from: smtp.from, to, subject, text, html });
+      return { delivered: true, provider: 'smtp' };
+    } catch (smtpError) {
+      console.error('[email] SMTP delivery failed:', smtpError.message);
+      return { delivered: false, error: smtpError.message };
+    }
   }
 
-  console.warn(devLog || `[dev] No email provider delivered to ${to}: ${subject}\n${text}`);
-  return { delivered: false, dev: process.env.NODE_ENV !== 'production' };
+  console.warn(devLog || `[authEmail] No email provider delivered to ${to}: ${subject}`);
+  return { delivered: false };
 };
 
 export const sendOtpEmail = async ({ email, name, code, purpose }) => {
@@ -119,12 +118,12 @@ export const sendOtpEmail = async ({ email, name, code, purpose }) => {
   const action = isSignup ? 'verify your account' : 'reset your password';
   const text = `Hello ${name || 'there'},\n\nYour verification code to ${action} is ${code}.\nIt expires in 10 minutes. If you did not request this, you can ignore this email.`;
   const html = `<p>Hello ${name || 'there'},</p><p>Your verification code to ${action} is <strong style="font-size:18px;letter-spacing:2px">${code}</strong>.</p><p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>`;
-  await deliver({
+  return await deliver({
     to: email,
     subject,
     text,
     html,
-    devLog: `[dev] SMTP is not configured. ${purpose} code for ${email}: [REDACTED]`,
+    devLog: `[authEmail] Code for ${email} (${purpose}): ${code}`,
   });
 };
 

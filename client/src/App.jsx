@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { SocketProvider } from './context/SocketContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { OrganizationProvider } from './context/OrganizationContext';
 import RequireAuth from './components/RequireAuth';
 import Layout from './layouts/Layout';
 import Login from './pages/Login';
@@ -48,8 +49,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
         <AuthProvider>
-          <SocketProvider>
-            <Router>
+          <OrganizationProvider>
+            <SocketProvider>
+              <Router>
               <Routes>
                 <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
                 <Route path="/signup" element={<PublicOnly><SignUp /></PublicOnly>} />
@@ -87,8 +89,9 @@ function App() {
               />
             </Router>
           </SocketProvider>
-        </AuthProvider>
-      </LanguageProvider>
+        </OrganizationProvider>
+      </AuthProvider>
+    </LanguageProvider>
     </QueryClientProvider>
   );
 }

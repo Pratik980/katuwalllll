@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
+import { useOrganization } from "../context/OrganizationContext";
 
 const navigationItems = [
   { key: 'dashboard', href: "/", icon: Squares2X2Icon, roles: ['admin', 'staff', 'user'] },
@@ -43,6 +44,7 @@ const accountLinks = [
 export default function Sidebar({ isOpen, toggle }) {
   const { t } = useLanguage();
   const { user, signOut } = useAuth();
+  const { logo, name: orgName } = useOrganization();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -71,12 +73,20 @@ export default function Sidebar({ isOpen, toggle }) {
           {/* Logo */}
           <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6">
             <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
-                <GitBranch className="h-6 w-6 text-white" />
-              </div>
+              {logo ? (
+                <img
+                  src={logo}
+                  alt={orgName || t('app_name')}
+                  className="h-11 w-11 rounded-xl object-contain border border-slate-200 bg-white p-0.5 shadow-sm"
+                />
+              ) : (
+                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg text-white font-bold text-lg">
+                  KB
+                </div>
+              )}
               <div>
-                <h1 className="font-bold text-lg text-slate-800">
-                  {t('app_name')}
+                <h1 className="font-bold text-lg text-slate-800 leading-tight">
+                  {orgName || t('app_name')}
                 </h1>
                 <p className="text-xs text-slate-500">
                   {t('management_system')}

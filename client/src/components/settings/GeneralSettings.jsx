@@ -5,8 +5,11 @@ import Button from '../Button';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { uploadLogo, updateOrganization } from '../../api/organization';
 import toast from 'react-hot-toast';
+import { UploadCloud, CheckCircle2 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const GeneralSettings = ({ data, onDataChange }) => {
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -75,35 +78,67 @@ const GeneralSettings = ({ data, onDataChange }) => {
   };
 
   const handleLogoUpload = async (file) => {
-    const formData = new FormData();
-    formData.append('logo', file);
-    await logoMutation.mutateAsync(formData);
-    setLogoPreview(URL.createObjectURL(file));
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File size exceeds 5MB limit');
+      return;
+    }
+    const form = new FormData();
+    form.append('logo', file);
+    try {
+      const res = await logoMutation.mutateAsync(form);
+      if (res?.logo) {
+        setLogoPreview(res.logo);
+      } else {
+        setLogoPreview(URL.createObjectURL(file));
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to upload logo');
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center p-4 bg-slate-50/80 rounded-2xl border border-slate-200">
+        <div className="text-center mb-3">
+          <h4 className="text-sm font-semibold text-slate-800">{t('brand_identity') || 'Brand Identity / Logo'}</h4>
+          <p className="text-xs text-slate-500 mt-0.5">{t('logo_preview_desc') || 'Displays in header and sidebar across the portal'}</p>
+        </div>
         {logoPreview ? (
-          <div className="relative">
+          <div className="relative group">
             <img
               src={logoPreview}
               alt="Organization Logo"
-              className="h-32 w-32 object-contain border-2 border-gray-200 rounded-lg"
+              className="h-32 w-32 object-contain border-2 border-emerald-500 rounded-2xl bg-white p-2 shadow-md"
             />
+            <span className="absolute -top-2 -right-2 bg-emerald-600 text-white rounded-full p-1 text-xs shadow">
+              <CheckCircle2 className="h-4 w-4" />
+            </span>
           </div>
         ) : (
-          <div className="h-32 w-32 bg-gray-200 rounded-lg flex items-center justify-center border-2 border-gray-300">
-            <span className="text-gray-500 text-sm">No Logo</span>
+          <div className="h-32 w-32 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex flex-col items-center justify-center shadow-lg text-white">
+            <span className="text-4xl font-black tracking-wider">KB</span>
+            <span className="text-xs font-semibold mt-1 opacity-90">Katuwal Bansha</span>
           </div>
         )}
-        <div className="mt-2">
-          <ImageUpload
-            onImageSelect={handleLogoUpload}
-            label="Upload Logo"
-            maxSize={5}
-            accept="image/*"
-          />
+        <div className="mt-4 flex flex-col items-center gap-1.5">
+          <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition disabled:opacity-50">
+            <UploadCloud className="h-4 w-4" />
+            {logoMutation.isPending ? (t('uploading') || 'Uploading...') : (t('upload_logo') || 'Upload Logo')}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleLogoUpload(file);
+              }}
+              className="hidden"
+              disabled={logoMutation.isPending}
+            />
+          </label>
+          <span className="text-xs text-slate-500">
+            PNG, JPG, WEBP, SVG (Max 5MB)
+          </span>
         </div>
       </div>
 

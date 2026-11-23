@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useLanguage } from '../context/LanguageContext';
+import PasswordInput from '../components/PasswordInput';
 
 const ForgotPassword = () => {
   const { t } = useLanguage();
   const [step, setStep] = useState('email');
   const [form, setForm] = useState({ email: '', code: '', password: '', confirmPassword: '' });
   const [resetToken, setResetToken] = useState('');
+  const [devCode, setDevCode] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -21,6 +23,11 @@ const ForgotPassword = () => {
       if (step === 'email') {
         const response = await api.post('/auth/forgot-password', { email: form.email });
         setMessage(response.data.message);
+        const receivedCode = response.data?.code || response.data?.devCode || '';
+        setDevCode(receivedCode);
+        if (receivedCode) {
+          setForm((prev) => ({ ...prev, code: receivedCode }));
+        }
         setStep('verify');
       } else if (step === 'verify') {
         const response = await api.post('/auth/verify-otp', {
@@ -60,6 +67,11 @@ const ForgotPassword = () => {
         email: form.email,
         purpose: 'password_reset',
       });
+      const receivedCode = response.data?.code || response.data?.devCode || '';
+      setDevCode(receivedCode);
+      if (receivedCode) {
+        setForm((prev) => ({ ...prev, code: receivedCode }));
+      }
       setMessage(response.data?.message || 'A new verification code has been sent.');
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Could not resend the verification code.');
@@ -75,31 +87,48 @@ const ForgotPassword = () => {
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">{t('reset_password')}</h1>
         <p className="mt-1 text-sm text-slate-600">{t('password_reset_verification_info')}</p>
         {message && <p role="status" className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>}
+        {step === 'verify' && devCode && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">Verification Code</p>
+            <p className="mt-1 text-2xl font-bold tracking-widest text-amber-950 font-mono">{devCode}</p>
+            <p className="mt-1 text-xs text-amber-700">Enter this 6-digit code below to set your new password.</p>
+          </div>
+        )}
         {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         {step !== 'complete' && (
           <form onSubmit={submit} className="mt-6 space-y-4">
             {step === 'email' && (
               <label className="block text-sm font-medium text-slate-700">
                 {t('email')}
-                <input type="email" autoComplete="email" required value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+                <input type="email" autoComplete="email" required value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100" />
               </label>
             )}
             {step === 'verify' && (
               <label className="block text-sm font-medium text-slate-700">
                 {t('six_digit_code')}
-                <input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+                <input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 text-center tracking-widest text-lg font-mono" />
               </label>
             )}
             {step === 'reset' && (
               <>
-                <label className="block text-sm font-medium text-slate-700">
-                  {t('new_password')}
-                  <input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" />
-                </label>
-                <label className="block text-sm font-medium text-slate-700">
-                  {t('confirm_new_password')}
-                  <input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={form.confirmPassword} onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" />
-                </label>
+                <PasswordInput
+                  label={t('new_password')}
+                  value={form.password}
+                  onChange={(event) => setForm({ ...form, password: event.target.value })}
+                  autoComplete="new-password"
+                  minLength={12}
+                  maxLength={128}
+                  required
+                />
+                <PasswordInput
+                  label={t('confirm_new_password')}
+                  value={form.confirmPassword}
+                  onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
+                  autoComplete="new-password"
+                  minLength={12}
+                  maxLength={128}
+                  required
+                />
               </>
             )}
             <button disabled={busy} className="w-full rounded-lg bg-emerald-800 px-4 py-2.5 font-medium text-white hover:bg-emerald-900 disabled:opacity-60">

@@ -639,7 +639,7 @@ const Settings = () => {
   const navItems = [
     { id: 'language', label: t('language') || 'Language', icon: Icons.Languages },
     ...(isAdmin ? [
-      { id: 'general', label: t('general') || 'General', icon: Icons.Building2 },
+      { id: 'general', label: t('site_settings') || t('general') || 'Site Settings', icon: Icons.Building2 },
       { id: 'notifications', label: t('notifications') || 'Notifications', icon: Icons.Bell },
       { id: 'documents', label: t('documents') || 'Documents', icon: Icons.FileText },
       { id: 'reports', label: t('reports') || 'Reports', icon: Icons.BarChart3 },
@@ -674,7 +674,19 @@ const Settings = () => {
   const renderSection = () => {
     switch (activeSection) {
       case 'general':
-        return <GeneralSettings data={data} onDataChange={refreshSettings} />;
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-gray-200 pb-3">
+              <h3 className="text-xl font-bold text-gray-900">
+                {t('site_settings') || 'Site Settings'}
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {t('site_settings_desc') || 'Manage organization branding, logo and portal details'}
+              </p>
+            </div>
+            <GeneralSettings data={data} onDataChange={refreshSettings} />
+          </div>
+        );
 
       case 'notifications':
         return <NotificationSettings data={data} onDataChange={refreshSettings} />;

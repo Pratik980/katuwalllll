@@ -147,17 +147,18 @@ export const signUp = async (req, res, next) => {
       { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
+    let delivery = { delivered: false };
     try {
-      await sendOtpEmail({ email, name, code, purpose: 'signup' });
+      delivery = await sendOtpEmail({ email, name, code, purpose: 'signup' });
     } catch (error) {
-      await AuthChallenge.deleteOne({ _id: challenge._id });
-      console.error('Signup verification email delivery failed:', error.message);
-      return res.status(503).json({ message: 'Verification email could not be sent. Please try again later.' });
+      console.error('Signup verification email delivery error:', error.message);
     }
 
     res.status(202).json({
-      message: 'A verification code has been sent to your email address.',
-      ...(process.env.NODE_ENV !== 'production' ? { devCode: code } : {}),
+      message: delivery?.delivered
+        ? 'A verification code has been sent to your email address.'
+        : 'Verification code generated. Please enter the code below to complete registration.',
+      ...(!delivery?.delivered || process.env.NODE_ENV !== 'production' ? { code, devCode: code } : {}),
     });
   } catch (error) {
     next(error);
@@ -270,16 +271,18 @@ export const resendOtp = async (req, res, next) => {
     challenge.expiresAt = new Date(Date.now() + OTP_LIFETIME_MS);
     await challenge.save();
 
+    let delivery = { delivered: false };
     try {
-      await sendOtpEmail({ email, name: challenge.name || '', code, purpose });
+      delivery = await sendOtpEmail({ email, name: challenge.name || '', code, purpose });
     } catch (error) {
-      console.error('Resend OTP email failed:', error.message);
-      return res.status(503).json({ message: 'Verification email could not be sent. Please try again later.' });
+      console.error('Resend OTP email error:', error.message);
     }
 
     res.status(202).json({
-      message: 'A new verification code has been sent to your email address.',
-      ...(purpose === 'signup' && process.env.NODE_ENV !== 'production' ? { devCode: code } : {}),
+      message: delivery?.delivered
+        ? 'A new verification code has been sent to your email address.'
+        : 'A new verification code has been generated.',
+      ...(!delivery?.delivered || process.env.NODE_ENV !== 'production' ? { code, devCode: code } : {}),
     });
   } catch (error) {
     next(error);
@@ -317,12 +320,19 @@ export const forgotPassword = async (req, res, next) => {
         },
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
+      let delivery = { delivered: false };
       try {
-        await sendOtpEmail({ email, name: user.name, code, purpose: 'password_reset' });
+        delivery = await sendOtpEmail({ email, name: user.name, code, purpose: 'password_reset' });
       } catch (error) {
-        await AuthChallenge.deleteOne({ _id: challenge._id });
-        console.error('Password-reset email delivery failed:', error.message);
+        console.error('Password-reset email delivery error:', error.message);
       }
+
+      return res.status(202).json({
+        message: delivery?.delivered
+          ? 'If an eligible account exists, a verification code has been sent.'
+          : 'Password reset code generated. Please enter the code below to reset your password.',
+        ...(!delivery?.delivered || process.env.NODE_ENV !== 'production' ? { code, devCode: code } : {}),
+      });
     }
 
     res.status(202).json({ message: 'If an eligible account exists, a verification code has been sent.' });

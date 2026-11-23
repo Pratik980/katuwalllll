@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { setCsrfToken } from '../api/csrfToken';
+import PasswordInput from '../components/PasswordInput';
 
 const ChangePassword = () => {
   const { updateUser, user } = useAuth();
@@ -44,19 +45,32 @@ const ChangePassword = () => {
         {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <form onSubmit={submit} className="mt-5 space-y-4">
           {!user?.mustChangePassword && (
-            <label className="block text-sm font-medium text-slate-700">
-              {t('current_password')}
-              <input type="password" autoComplete="current-password" required value={form.currentPassword} onChange={(event) => setForm({ ...form, currentPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" />
-            </label>
+            <PasswordInput
+              label={t('current_password')}
+              value={form.currentPassword}
+              onChange={(event) => setForm({ ...form, currentPassword: event.target.value })}
+              autoComplete="current-password"
+              required
+            />
           )}
-          <label className="block text-sm font-medium text-slate-700">
-            {t('new_password')}
-            <input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={form.newPassword} onChange={(event) => setForm({ ...form, newPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {t('confirm_new_password')}
-            <input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={form.confirmPassword} onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" />
-          </label>
+          <PasswordInput
+            label={t('new_password')}
+            value={form.newPassword}
+            onChange={(event) => setForm({ ...form, newPassword: event.target.value })}
+            autoComplete="new-password"
+            minLength={12}
+            maxLength={128}
+            required
+          />
+          <PasswordInput
+            label={t('confirm_new_password')}
+            value={form.confirmPassword}
+            onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
+            autoComplete="new-password"
+            minLength={12}
+            maxLength={128}
+            required
+          />
           <button disabled={busy} className="w-full rounded-lg bg-emerald-800 px-4 py-2.5 font-medium text-white hover:bg-emerald-900 disabled:opacity-60">
             {busy ? t('updating') : t('update_password')}
           </button>

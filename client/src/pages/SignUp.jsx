@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { setCsrfToken } from '../api/csrfToken';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import PasswordInput from '../components/PasswordInput';
 
 const SignUp = () => {
   const { updateUser } = useAuth();
@@ -28,8 +29,12 @@ const SignUp = () => {
         password: form.password,
       });
       setStep('verify');
-      setDevCode(response.data?.devCode || '');
-      setMessage('A verification code has been sent to your email address.');
+      const receivedCode = response.data?.code || response.data?.devCode || '';
+      setDevCode(receivedCode);
+      if (receivedCode) {
+        setForm((prev) => ({ ...prev, code: receivedCode }));
+      }
+      setMessage(response.data?.message || 'A verification code has been sent to your email address.');
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Could not start account registration.');
     } finally {
@@ -46,7 +51,11 @@ const SignUp = () => {
         email: form.email,
         purpose: 'signup',
       });
-      setDevCode(response.data?.devCode || '');
+      const receivedCode = response.data?.code || response.data?.devCode || '';
+      setDevCode(receivedCode);
+      if (receivedCode) {
+        setForm((prev) => ({ ...prev, code: receivedCode }));
+      }
       setMessage(response.data?.message || 'A new verification code has been sent.');
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Could not resend the verification code.');
@@ -101,16 +110,26 @@ const SignUp = () => {
         </p>
         {message && <p role="status" className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>}
         {step === 'verify' && devCode && (
-          <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Development verification code: <strong className="tracking-widest">{devCode}</strong>
-          </p>
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">Verification Code</p>
+            <p className="mt-1 text-2xl font-bold tracking-widest text-amber-950 font-mono">{devCode}</p>
+            <p className="mt-1 text-xs text-amber-700">Enter this 6-digit code below to complete account registration.</p>
+          </div>
         )}
         {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         {step === 'details' ? (
           <form className="mt-6 space-y-4" onSubmit={submitDetails}>
             {field('name', t('full_name'), 'text', 'name')}
             {field('email', t('email'), 'email', 'email')}
-            {field('password', t('password_min_length'), 'password', 'new-password')}
+            <PasswordInput
+              label={t('password_min_length')}
+              value={form.password}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              autoComplete="new-password"
+              minLength={12}
+              maxLength={128}
+              required
+            />
             <button disabled={submitting} className="w-full rounded-lg bg-emerald-800 px-4 py-2.5 font-medium text-white hover:bg-emerald-900 disabled:opacity-60">
               {submitting ? t('sending_code') : t('continue_email_verification')}
             </button>

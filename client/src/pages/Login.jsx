@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import PasswordInput from '../components/PasswordInput';
 
 const Login = () => {
   const { signIn, initializationError } = useAuth();
@@ -47,17 +48,13 @@ const Login = () => {
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
             />
           </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {t('password')}
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={form.password}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
-            />
-          </label>
+          <PasswordInput
+            label={t('password')}
+            value={form.password}
+            onChange={(event) => setForm({ ...form, password: event.target.value })}
+            autoComplete="current-password"
+            required
+          />
           <div className="flex justify-end">
             <Link to="/forgot-password" className="text-sm text-emerald-700 hover:underline">{t('forgot_password')}</Link>
           </div>

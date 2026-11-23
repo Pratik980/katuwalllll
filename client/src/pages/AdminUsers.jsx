@@ -5,6 +5,7 @@ import { getFamilies } from '../api/families';
 import { getMembers } from '../api/members';
 import { createStaffUser, deleteManagedUser, getAdminUsers, resetManagedUserPassword, updateManagedUser } from '../api/admin';
 import { useLanguage } from '../context/LanguageContext';
+import PasswordInput from '../components/PasswordInput';
 
 const AdminUsers = () => {
   const { t } = useLanguage();
@@ -93,7 +94,7 @@ const AdminUsers = () => {
             <input type="email" required value={staffForm.email} onChange={(event) => setStaffForm({ ...staffForm, email: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
           </label>
           <label className="text-sm font-medium text-slate-700">{t('temporary_password')}
-            <input type="password" minLength={12} maxLength={128} required value={staffForm.password} onChange={(event) => setStaffForm({ ...staffForm, password: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+            <PasswordInput minLength={12} maxLength={128} required value={staffForm.password} onChange={(event) => setStaffForm({ ...staffForm, password: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
           </label>
           <fieldset className="md:col-span-2">
             <legend className="text-sm font-medium text-slate-700">{t('authorized_families')}</legend>
@@ -179,8 +180,7 @@ const AdminUsers = () => {
                 <div className="flex flex-col gap-2">
                   {['user', 'staff'].includes(user.role) && (
                     <div className="space-y-2 rounded-lg border border-slate-200 p-3">
-                      <input
-                        type="password"
+                      <PasswordInput
                         minLength={12}
                         maxLength={128}
                         placeholder={t('temporary_password')}
