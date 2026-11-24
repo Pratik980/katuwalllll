@@ -253,6 +253,23 @@ export const translations = {
     family_report: 'Family Report',
     member_report: 'Member Report',
     donation_report: 'Donation Report',
+
+    // Account & Profile
+    account_profile: 'My Account',
+    account_profile_description: 'Manage your personal profile and account settings',
+    save_profile: 'Save Profile',
+    profile_updated: 'Profile updated successfully!',
+    profile_update_failed: 'Failed to update profile.',
+    profile_photo: 'Profile Photo',
+    upload_photo: 'Upload Photo',
+    uploading_photo: 'Uploading Photo...',
+    remove_photo: 'Remove Photo',
+    profile_photo_updated: 'Profile photo updated successfully!',
+    photo_update_failed: 'Failed to update photo.',
+    choose_photo: 'Choose Photo',
+    cancel_selection: 'Cancel',
+    photo_size_hint: 'JPG, PNG, or WebP up to 5MB',
+    password_change_revoke_info: 'Change your password to keep your account secure. Other sessions will be revoked.',
   },
   ne: {
     // Pages
@@ -507,5 +524,22 @@ export const translations = {
     family_report: 'परिवार प्रतिवेदन',
     member_report: 'सदस्य प्रतिवेदन',
     donation_report: 'दान प्रतिवेदन',
+
+    // Account & Profile
+    account_profile: 'मेरो खाता',
+    account_profile_description: 'तपाईंको व्यक्तिगत प्रोफाइल र खाता सेटिङहरू व्यवस्थापन गर्नुहोस्',
+    save_profile: 'प्रोफाइल सुरक्षित गर्नुहोस्',
+    profile_updated: 'प्रोफाइल सफलतापूर्वक अद्यावधिक गरियो!',
+    profile_update_failed: 'प्रोफाइल अद्यावधिक गर्न असफल भयो।',
+    profile_photo: 'प्रोफाइल फोटो',
+    upload_photo: 'फोटो अपलोड गर्नुहोस्',
+    uploading_photo: 'फोटो अपलोड हुँदैछ...',
+    remove_photo: 'फोटो हटाउनुहोस्',
+    profile_photo_updated: 'प्रोफाइल फोटो सफलतापूर्वक अद्यावधिक गरियो!',
+    photo_update_failed: 'फोटो अद्यावधिक गर्न असफल भयो।',
+    choose_photo: 'फोटो छान्नुहोस्',
+    cancel_selection: 'रद्द गर्नुहोस्',
+    photo_size_hint: 'JPG, PNG वा WebP (अधिकतम ५ MB)',
+    password_change_revoke_info: 'खाता सुरक्षित राख्न पासवर्ड परिवर्तन गर्नुहोस्। अन्य लगइनहरू निष्कृय हुनेछन्।',
   }
 };

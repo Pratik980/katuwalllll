@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   XMarkIcon,
@@ -46,6 +47,11 @@ export default function Sidebar({ isOpen, toggle }) {
   const { user, signOut } = useAuth();
   const { logo, name: orgName } = useOrganization();
   const navigate = useNavigate();
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.photo]);
 
   const handleSignOut = async () => {
     try {
@@ -135,9 +141,18 @@ export default function Sidebar({ isOpen, toggle }) {
             {user && (
               <>
                 <div className="mb-3 flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2">
-                  <div className="h-9 w-9 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center text-sm font-bold text-white">
-                    {user.name?.charAt(0).toUpperCase() || '?'}
-                  </div>
+                  {user.photo && !avatarError ? (
+                    <img
+                      src={user.photo}
+                      alt={user.name}
+                      onError={() => setAvatarError(true)}
+                      className="h-9 w-9 rounded-full object-cover border border-slate-200 shrink-0 bg-white shadow-xs"
+                    />
+                  ) : (
+                    <div className="h-9 w-9 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-xs">
+                      {user.name?.charAt(0).toUpperCase() || '?'}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-800">{user.name}</p>
                     <p className="text-xs capitalize text-slate-500">{user.role}</p>

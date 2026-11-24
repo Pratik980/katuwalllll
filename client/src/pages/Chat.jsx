@@ -510,9 +510,17 @@ export default function Chat() {
           {/* User Presence Footer */}
           <div className="p-3 border-t border-slate-200 bg-white flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-              </div>
+              {user?.photo ? (
+                <img
+                  src={user.photo}
+                  alt={user?.name || 'User'}
+                  className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0 shadow-xs bg-white"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-slate-800 truncate">{user?.name || 'My Profile'}</p>
                 <p className="text-[10px] text-slate-400 capitalize">{user?.role || 'Member'}</p>

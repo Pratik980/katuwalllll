@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -30,6 +30,11 @@ export default function Header({ toggleSidebar }) {
   const { user } = useAuth();
   const { logo, name: orgName } = useOrganization();
   const [search, setSearch] = useState("");
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.photo]);
 
   const { data: unread } = useQuery({
     queryKey: ["notifications-unread"],
@@ -118,9 +123,18 @@ export default function Header({ toggleSidebar }) {
           </button>
 
           <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-3 py-2">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold shadow">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
+            {user?.photo && !avatarError ? (
+              <img
+                src={user.photo}
+                alt={displayName}
+                onError={() => setAvatarError(true)}
+                className="h-10 w-10 rounded-full object-cover border border-slate-200 shadow shrink-0 bg-white"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold shadow shrink-0">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="hidden lg:block text-left">
               <p className="text-sm font-semibold text-slate-800">{displayName}</p>
               {user?.role && <p className="text-xs capitalize text-slate-500">{user.role}</p>}
