@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Mail, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import PasswordInput from '../components/PasswordInput';
+import AuthLayout from '../components/AuthLayout';
 
 const Login = () => {
   const { signIn, initializationError } = useAuth();
@@ -21,52 +23,113 @@ const Login = () => {
       const user = await signIn(form);
       navigate(user.mustChangePassword ? '/change-password' : location.state?.from || '/', { replace: true });
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Sign in failed. Please try again.');
+      setError(requestError.response?.data?.message || 'Sign in failed. Please check your credentials.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 flex items-center justify-center">
-      <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <p className="text-sm font-medium text-emerald-700">Katuwal Banshabatika</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">{t('sign_in')}</h1>
-        <p className="mt-1 text-sm text-slate-600">{t('sign_in_description')}</p>
-        {(error || initializationError) && (
-          <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error || initializationError}</p>
-        )}
-        <form className="mt-6 space-y-4" onSubmit={submit}>
-          <label className="block text-sm font-medium text-slate-700">
+    <AuthLayout
+      title={t('welcome_back') || 'Welcome Back'}
+      subtitle={t('sign_in_description') || 'Access your lineage records and family directory.'}
+    >
+      {(error || initializationError) && (
+        <div
+          role="alert"
+          className="mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-2xs"
+        >
+          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold">{error ? 'Sign In Failed' : 'Connection Notice'}</p>
+            <p className="mt-0.5 text-xs text-red-700">{error || initializationError}</p>
+          </div>
+        </div>
+      )}
+
+      <form className="space-y-4" onSubmit={submit}>
+        <div>
+          <label htmlFor="login-email" className="block text-sm font-medium text-slate-700">
             {t('email')}
+          </label>
+          <div className="relative mt-1">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+              <Mail className="h-5 w-5 text-slate-400" />
+            </div>
             <input
+              id="login-email"
               type="email"
               autoComplete="email"
               required
+              placeholder="your.email@example.com"
               value={form.email}
               onChange={(event) => setForm({ ...form, email: event.target.value })}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+              className="w-full rounded-xl border border-slate-300 pl-10 pr-4 py-2.5 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/10 shadow-2xs"
             />
-          </label>
+          </div>
+        </div>
+
+        <div>
           <PasswordInput
             label={t('password')}
             value={form.password}
             onChange={(event) => setForm({ ...form, password: event.target.value })}
             autoComplete="current-password"
+            placeholder="••••••••••••"
             required
+            icon={Lock}
           />
-          <div className="flex justify-end">
-            <Link to="/forgot-password" className="text-sm text-emerald-700 hover:underline">{t('forgot_password')}</Link>
-          </div>
-          <button disabled={submitting} className="w-full rounded-lg bg-emerald-800 px-4 py-2.5 font-medium text-white hover:bg-emerald-900 disabled:opacity-60">
-            {submitting ? t('signing_in') : t('sign_in')}
-          </button>
-        </form>
-        <p className="mt-6 text-center text-sm text-slate-600">
-          {t('new_to_platform')} <Link to="/signup" className="font-medium text-emerald-700 hover:underline">{t('create_user_account')}</Link>
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              defaultChecked
+              className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-500"
+            />
+            <span className="text-xs text-slate-600">Remember on this device</span>
+          </label>
+          <Link
+            to="/forgot-password"
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition"
+          >
+            {t('forgot_password')}
+          </Link>
+        </div>
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-800 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:from-emerald-800 hover:to-teal-900 hover:shadow-md transition active:scale-98 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>{t('signing_in')}</span>
+            </>
+          ) : (
+            <>
+              <span>{t('sign_in')}</span>
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </button>
+      </form>
+
+      {/* Alternate Link */}
+      <div className="mt-8 pt-6 border-t border-slate-200 text-center">
+        <p className="text-sm text-slate-600">
+          {t('new_to_platform')}{' '}
+          <Link
+            to="/signup"
+            className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline transition ml-1"
+          >
+            {t('create_user_account')}
+          </Link>
         </p>
-      </section>
-    </main>
+      </div>
+    </AuthLayout>
   );
 };
 
