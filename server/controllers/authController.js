@@ -122,43 +122,23 @@ export const signUp = async (req, res, next) => {
       return res.status(409).json({ message: 'An account with this email already exists.' });
     }
 
-    const existing = await AuthChallenge.findOne({ email, purpose: 'signup' });
-    if (existing?.lastSentAt && Date.now() - existing.lastSentAt.getTime() < 60_000) {
-      return res.status(429).json({ message: 'Please wait one minute before requesting another verification code.' });
-    }
+    const passwordHash = await bcrypt.hash(password, 12);
+    const user = await User.create({
+      name,
+      email,
+      passwordHash,
+      role: 'user',
+      emailVerified: true,
+      isActive: true,
+    });
 
-    const code = generateOtpCode();
-    const challenge = await AuthChallenge.findOneAndUpdate(
-      { email, purpose: 'signup' },
-      {
-        $set: {
-          email,
-          purpose: 'signup',
-          codeHash: hashOtp(email, 'signup', code),
-          passwordHash: await bcrypt.hash(password, 12),
-          name,
-          attempts: 0,
-          verifiedAt: null,
-          resetTokenHash: null,
-          expiresAt: new Date(Date.now() + OTP_LIFETIME_MS),
-          lastSentAt: new Date(),
-        },
-      },
-      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-    );
+    const csrfToken = issueSession(user, res);
+    await recordLogin(req, user);
 
-    let delivery = { delivered: false };
-    try {
-      delivery = await sendOtpEmail({ email, name, code, purpose: 'signup' });
-    } catch (error) {
-      console.error('Signup verification email delivery error:', error.message);
-    }
-
-    res.status(202).json({
-      message: delivery?.delivered
-        ? 'A verification code has been sent to your email address.'
-        : 'Verification code generated. Please enter the code below to complete registration.',
-      ...(!delivery?.delivered || process.env.NODE_ENV !== 'production' ? { code, devCode: code } : {}),
+    res.status(201).json({
+      message: 'Account created successfully.',
+      user: safeUser(user),
+      csrfToken,
     });
   } catch (error) {
     next(error);
