@@ -39,7 +39,18 @@ const queryClient = new QueryClient({
 
 const PublicOnly = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="p-8 text-center text-sm text-slate-600">Loading your account...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg mb-4">
+          KB
+        </div>
+        <div className="animate-spin rounded-full h-8 w-8 border-3 border-emerald-600 border-t-transparent mb-3" />
+        <h3 className="text-base font-bold text-slate-800">Katuwal Bansha</h3>
+        <p className="text-xs text-slate-500 mt-1">Connecting to account service...</p>
+      </div>
+    );
+  }
   if (user) return <Navigate to="/" replace />;
   return children;
 };

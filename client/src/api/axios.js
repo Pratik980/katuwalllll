@@ -9,7 +9,7 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
-  timeout: 30000, // 30 seconds for large file uploads
+  timeout: 45000, // 45 seconds for cold start and uploads
 });
 
 const isFormData = (data) => typeof FormData !== 'undefined' && data instanceof FormData;
