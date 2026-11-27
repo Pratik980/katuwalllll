@@ -231,6 +231,12 @@ export const memberValidation = [
 
 // ... existing code ...
 
+const normalizeDonorPhone = (value) => String(value ?? '').replace(/\D/g, '');
+const validDonorPhone = (value) => {
+  const digits = normalizeDonorPhone(value);
+  return digits.length >= 7 && digits.length <= 15;
+};
+
 export const donationValidation = [
   body('donorType')
     .isIn(['member', 'family', 'external'])
@@ -245,22 +251,15 @@ export const donationValidation = [
       return true;
     }),
   body('donorName')
-    .if(body('donorType').equals('external'))
-    .trim()
-    .isLength({ min: 2, max: 100 })
-    .withMessage('Donor name must be between 2 and 100 characters'),
-  body('donorName')
-    .if(body('donorType').not().equals('external'))
-    .optional()
     .trim()
     .isLength({ min: 2, max: 100 })
     .withMessage('Donor name must be between 2 and 100 characters'),
   body('donorPhone')
-    .optional({ nullable: true, checkFalsy: true })
-    .matches(/^[0-9]{10,15}$/)
+    .customSanitizer(normalizeDonorPhone)
+    .custom(validDonorPhone)
     .withMessage('Invalid phone number'),
   body('donorEmail')
-    .optional({ nullable: true, checkFalsy: true })
+    .trim()
     .isEmail()
     .withMessage('Invalid email address'),
   body('amount')

@@ -60,6 +60,10 @@ const chatSchema = new mongoose.Schema({
     },
     userName: String,
   }],
+  editedAt: {
+    type: Date,
+    default: null,
+  },
   isDeleted: {
     type: Boolean,
     default: false,

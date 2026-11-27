@@ -48,8 +48,15 @@ const sendExcel = (res, sheets, filename) => {
   const wb = XLSX.utils.book_new();
   sheets.forEach(({ name, rows, columnWidth }) => {
     const ws = XLSX.utils.json_to_sheet(rows);
-    if (columnWidth && rows.length > 0) {
-      ws['!cols'] = Object.keys(rows[0]).map((key) => ({ wch: Math.max(key.length, columnWidth) }));
+    const columns = Object.keys(rows[0] || {});
+    ws['!cols'] = columns.map((key) => {
+      const longest = rows.reduce((max, row) => Math.max(max, String(row[key] ?? '').length), key.length);
+      return { wch: Math.min(Math.max(longest + 2, columnWidth || 12), 42) };
+    });
+    if (rows.length && columns.length) {
+      ws['!autofilter'] = {
+        ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: columns.length - 1 } }),
+      };
     }
     XLSX.utils.book_append_sheet(wb, ws, sheetName(name));
   });
@@ -57,14 +64,6 @@ const sendExcel = (res, sheets, filename) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   setDownloadName(res, filename);
   return res.send(buffer);
-};
-
-// Aggregations do not convert text to an id by themselves the way find() does
-const familyMatch = (familyId) => {
-  if (!familyId) return {};
-  return mongoose.Types.ObjectId.isValid(familyId)
-    ? { family: new mongoose.Types.ObjectId(String(familyId)) }
-    : { _id: null };
 };
 
 const isObjectId = (value) => /^[0-9a-fA-F]{24}$/.test(String(value ?? ''));
@@ -79,18 +78,11 @@ const scopedFamilyIds = (req, requested) => {
 };
 
 const scopedMemberQuery = async (req, params = {}) => {
-  const query = await buildMemberQuery(params);
-  const ids = scopedFamilyIds(req, params.family);
+  const query = await buildMemberQuery({ ...params, family: params.family || params.familyId });
+  const ids = scopedFamilyIds(req, params.family || params.familyId);
   if (ids !== null) query.family = { $in: ids };
+  if (req.user?.role === 'user') query.createdBy = req.user._id;
   return query;
-};
-
-const scopedAggregateMatch = (req, requested) => {
-  const base = familyMatch(requested);
-  const ids = scopedFamilyIds(req, requested);
-  if (ids === null) return base;
-  if (!ids.length) return { _id: null };
-  return { family: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } };
 };
 
 const donationMatchForUser = async (req) => {
@@ -115,15 +107,43 @@ const denyOtherFamily = (res, req, familyId) => {
 
 const lifeStatus = (member) => (member.isAlive === false ? 'Deceased' : 'Living');
 
+const wantsPhoto = (req) => ['true', '1', true].includes(req.query?.includePhoto);
+const photoField = (req, member) => (wantsPhoto(req) ? { Photo: member.photo || '' } : {});
+
+const asObjectId = (value) => (isObjectId(value) ? new mongoose.Types.ObjectId(String(value)) : value);
+
+const scopedMemberMatch = async (req, params = req.query) => {
+  const query = await scopedMemberQuery(req, params);
+  if (query.family?.$in) {
+    query.family = { $in: query.family.$in.map(asObjectId) };
+  } else if (query.family) {
+    query.family = asObjectId(query.family);
+  }
+  if (query.createdBy) query.createdBy = asObjectId(query.createdBy);
+  return query;
+};
+
+const applyDateRange = (query, dateRange, field = 'createdAt') => {
+  if (!dateRange || typeof dateRange !== 'string') return query;
+  const [start, end] = dateRange.split(',');
+  if (!start || !end) return query;
+  const from = new Date(start);
+  const to = new Date(end);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return query;
+  query[field] = { $gte: from, $lte: to };
+  return query;
+};
+
 
 // ============================================================
 // GENEALOGY
 // ============================================================
 export const generateGenealogyReport = async (req, res) => {
   try {
-    const { format = 'json', familyId } = req.query;
+    const { format = 'json', dateRange } = req.query;
+    const params = { ...req.query, family: req.query.family || req.query.familyId };
 
-    const query = await scopedMemberQuery(req, { family: familyId });
+    const query = applyDateRange(await scopedMemberQuery(req, params), dateRange);
 
     const members = await Member.find(query)
       .populate('family', 'familyName familyNumber')
@@ -156,6 +176,7 @@ export const generateGenealogyReport = async (req, res) => {
       'Permanent Address': m.permanentAddress || '',
       'Occupation': m.occupation || '',
       'Education': m.education || '',
+      ...photoField(req, m),
     }));
 
     if (format === 'csv') {
@@ -182,7 +203,7 @@ export const generateGenealogyReport = async (req, res) => {
 // ============================================================
 export const generateFamilyReport = async (req, res) => {
   try {
-    const { familyId, format = 'excel' } = req.query;
+    const { familyId, format = 'excel', dateRange } = req.query;
 
     if (!familyId) {
       return res.status(400).json({ message: 'Family ID is required' });
@@ -201,8 +222,8 @@ export const generateFamilyReport = async (req, res) => {
       return res.status(404).json({ message: 'Family not found' });
     }
 
-    const members = await Member.find({ family: familyId })
-      .select('name surname memberNumber gender dob dobNepali isAlive generation relationship phone email district occupation education')
+    const members = await Member.find(applyDateRange({ family: familyId }, dateRange))
+      .select('name surname memberNumber gender dob dobNepali isAlive generation relationship phone email district occupation education photo')
       .sort({ generation: 1, name: 1 })
       .lean();
 
@@ -252,6 +273,7 @@ export const generateFamilyReport = async (req, res) => {
         'District': m.district || '',
         'Occupation': m.occupation || '',
         'Education': m.education || '',
+        ...photoField(req, m),
       })),
     };
 
@@ -266,14 +288,6 @@ export const generateFamilyReport = async (req, res) => {
           {
             name: 'Family Info',
             rows: Object.entries(reportData['Family Information']).map(([key, value]) => ({ Field: key, Value: value })),
-          },
-          {
-            name: 'Statistics',
-            rows: Object.entries(reportData.Statistics).map(([key, value]) => ({ Metric: key, Count: value })),
-          },
-          {
-            name: 'Generations',
-            rows: Object.entries(reportData['Generation Distribution']).map(([gen, count]) => ({ Generation: gen, Count: count })),
           },
           { name: 'Members', rows: reportData.Members },
         ],
@@ -294,7 +308,7 @@ export const generateFamilyReport = async (req, res) => {
 // ============================================================
 export const exportAllMembers = async (req, res) => {
   try {
-    const query = await scopedMemberQuery(req, req.query);
+    const query = applyDateRange(await scopedMemberQuery(req, req.query), req.query.dateRange);
 
     const members = await Member.find(query)
       .populate({
@@ -319,7 +333,6 @@ export const exportAllMembers = async (req, res) => {
       'Family': m.family?.familyName || '',
       'Family Number': m.family?.familyNumber || '',
       'Status': lifeStatus(m),
-      'Verification': m.verificationStatus || 'pending',
       'Phone': m.phone || '',
       'Email': m.email || '',
       'District': m.district || '',
@@ -330,7 +343,12 @@ export const exportAllMembers = async (req, res) => {
       'Occupation': m.occupation || '',
       'Education': m.education || '',
       'Citizenship': m.citizenshipNumber || '',
+      ...photoField(req, m),
     }));
+
+    if (req.query.format === 'json') {
+      return res.json({ total: reportData.length, data: reportData });
+    }
 
     return sendExcel(
       res,
@@ -397,10 +415,12 @@ export const exportFamilyTree = async (req, res) => {
 // ============================================================
 export const generateGenerationReport = async (req, res) => {
   try {
-    const { format = 'json', familyId } = req.query;
+    const { format = 'json', dateRange } = req.query;
+
+    const memberMatch = applyDateRange(await scopedMemberMatch(req), dateRange);
 
     const generationStats = await Member.aggregate([
-      { $match: scopedAggregateMatch(req, familyId) },
+      { $match: memberMatch },
       {
         $group: {
           _id: '$generation',
@@ -449,8 +469,8 @@ export const generateGenerationReport = async (req, res) => {
 // ============================================================
 export const generateDonationReport = async (req, res) => {
   try {
-    const { format = 'json', paymentStatus, category } = req.query;
-    const match = await donationMatchForUser(req);
+    const { format = 'json', paymentStatus, category, dateRange } = req.query;
+    const match = applyDateRange(await donationMatchForUser(req), dateRange, 'donationDate');
     if (paymentStatus) match.paymentStatus = paymentStatus;
     if (category) match.category = category;
 
@@ -508,8 +528,8 @@ export const generateDonationReport = async (req, res) => {
 // ============================================================
 export const generateDemographicReport = async (req, res) => {
   try {
-    const { format = 'json', familyId } = req.query;
-    const matchQuery = scopedAggregateMatch(req, familyId);
+    const { format = 'json', dateRange } = req.query;
+    const matchQuery = applyDateRange(await scopedMemberMatch(req), dateRange);
 
     const groupBy = (field, extra = []) =>
       Member.aggregate([
@@ -572,7 +592,7 @@ export const generateDemographicReport = async (req, res) => {
 // ============================================================
 export const generateQRReport = async (req, res) => {
   try {
-    const members = await Member.find(await scopedMemberQuery(req, { family: req.query.family }))
+    const members = await Member.find(applyDateRange(await scopedMemberQuery(req, { family: req.query.family }), req.query.dateRange))
       .select('name memberNumber generation family photo')
       .populate('family', 'familyName familyNumber')
       .lean();
@@ -583,7 +603,8 @@ export const generateQRReport = async (req, res) => {
       'Family': m.family?.familyName || '',
       'Family Number': m.family?.familyNumber || '',
       'Generation': m.generation || '',
-      'QR Code URL': m.photo || '',
+      'QR Code URL': `/profile/${m._id}`,
+      ...photoField(req, m),
     }));
 
     if (req.query.format === 'csv') {
@@ -607,7 +628,7 @@ export const generateQRReport = async (req, res) => {
 // ============================================================
 export const generateAllFamiliesReport = async (req, res) => {
   try {
-    const { format = 'excel' } = req.query;
+    const { format = 'excel', dateRange } = req.query;
 
     const ids = scopedFamilyIds(req);
     const [families, allMembers] = await Promise.all([
@@ -615,8 +636,8 @@ export const generateAllFamiliesReport = async (req, res) => {
         .populate('familyHead', 'name memberNumber phone')
         .populate('headOfFamily', 'name memberNumber phone')
         .lean(),
-      Member.find(ids === null ? {} : { family: { $in: ids } })
-        .select('family name surname memberNumber gender dob dobNepali dod dodNepali isAlive generation relationship phone email district occupation education')
+      Member.find(applyDateRange(ids === null ? {} : { family: { $in: ids } }, dateRange))
+        .select('family name surname memberNumber gender dob dobNepali dod dodNepali isAlive generation relationship phone email district occupation education photo')
         .sort({ generation: 1, name: 1 })
         .lean(),
     ]);
@@ -634,33 +655,18 @@ export const generateAllFamiliesReport = async (req, res) => {
       const members = membersByFamily.get(String(family._id)) || [];
       const head = family.familyHead || family.headOfFamily;
 
-      reportData.push({
+      const familyFields = {
         'Family Name': family.familyName || '',
         'Family Number': family.familyNumber || '',
         'Head of Family': head?.name || family.familyHeadName || '',
         'Total Members': members.length,
-        'Member ID': '',
-        'Member Name': '',
-        'Gender': '',
-        'Generation': '',
-        'Status': '',
-        'Phone': '',
-        'District': '',
-        'Email': '',
-        'Occupation': '',
-        'Education': '',
-        'Date of Birth (BS)': '',
-        'Date of Birth': '',
-        'Date of Death': '',
-        'Relationship': '',
-      });
+      };
+
+      if (!members.length) reportData.push({ ...familyFields });
 
       members.forEach(m => {
         reportData.push({
-          'Family Name': '',
-          'Family Number': '',
-          'Head of Family': '',
-          'Total Members': '',
+          ...familyFields,
           'Member ID': m.memberNumber || '',
           'Member Name': m.name || '',
           'Gender': m.gender || '',
@@ -675,10 +681,9 @@ export const generateAllFamiliesReport = async (req, res) => {
           'Date of Birth': formatDate(m.dob),
           'Date of Death': m.dodNepali || formatDate(m.dod),
           'Relationship': m.relationship || '',
+          ...photoField(req, m),
         });
       });
-
-      reportData.push({});
     }
 
     if (format === 'excel') {
@@ -700,17 +705,7 @@ export const generateMemberReport = async (req, res) => {
   try {
     const { format = 'excel', dateRange } = req.query;
 
-    const query = await scopedMemberQuery(req, req.query);
-
-    if (dateRange) {
-      const [start, end] = dateRange.split(',');
-      if (start && end) {
-        query.createdAt = {
-          $gte: new Date(start),
-          $lte: new Date(end)
-        };
-      }
-    }
+    const query = applyDateRange(await scopedMemberQuery(req, req.query), dateRange);
 
     const members = await Member.find(query)
       .populate('family', 'familyName familyNumber')
@@ -725,7 +720,6 @@ export const generateMemberReport = async (req, res) => {
       'Family': m.family?.familyName || '',
       'Family Number': m.family?.familyNumber || '',
       'Status': lifeStatus(m),
-      'Verification': m.verificationStatus || 'pending',
       'Phone': m.phone || '',
       'Email': m.email || '',
       'District': m.district || '',
@@ -738,6 +732,7 @@ export const generateMemberReport = async (req, res) => {
       'Marital Status': m.maritalStatus || '',
       'Blood Group': m.bloodGroup || '',
       'Relationship': m.relationship || '',
+      ...photoField(req, m),
     }));
 
     if (format === 'csv') {

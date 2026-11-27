@@ -57,13 +57,13 @@ const AccountProfile = () => {
     if (!file) return;
 
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      toast.error('Only JPEG, PNG, or WebP images are allowed.');
+      toast.error(t('image_type_error'));
       event.target.value = '';
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be smaller than 5MB.');
+      toast.error(t('image_size_error'));
       event.target.value = '';
       return;
     }
@@ -90,7 +90,7 @@ const AccountProfile = () => {
   };
 
   const handleRemovePhoto = () => {
-    if (!window.confirm(t('confirm_remove_photo') || 'Are you sure you want to remove your profile photo?')) return;
+    if (!window.confirm(t('confirm_remove_photo'))) return;
     handleCancelSelection();
     const body = new FormData();
     body.append('removePhoto', 'true');
@@ -124,14 +124,14 @@ const AccountProfile = () => {
                 }`}
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-emerald-600 text-2xl font-bold text-white shadow-sm">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-800 text-2xl font-bold text-white shadow-sm">
                 {user?.name?.slice(0, 1)?.toUpperCase() || '?'}
               </div>
             )}
 
             {previewUrl && (
               <span className="absolute -bottom-1 -right-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
-                Preview
+                {t('preview')}
               </span>
             )}
           </div>
@@ -206,7 +206,7 @@ const AccountProfile = () => {
               <p className="text-xs text-slate-600 flex items-center gap-1">
                 <span className="font-medium text-emerald-700">{photo.name}</span>
                 <span>({(photo.size / 1024).toFixed(0)} KB)</span>
-                <span className="text-slate-400">— Click "{t('upload_photo')}" to save</span>
+                <span className="text-slate-400">— {t('click_to_save', { action: t('upload_photo') })}</span>
               </p>
             )}
           </div>
@@ -263,7 +263,7 @@ const AccountProfile = () => {
             {saveProfile.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Saving...</span>
+                <span>{t('saving')}</span>
               </>
             ) : (
               <span>{t('save_profile')}</span>

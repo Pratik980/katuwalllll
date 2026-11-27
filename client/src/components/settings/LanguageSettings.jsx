@@ -1,25 +1,25 @@
 import React from 'react';
-import { useLanguage } from '../../context/LanguageContext';
+import { LANGUAGES, useLanguage } from '../../context/LanguageContext';
 import { CheckIcon } from '@heroicons/react/24/solid';
 import { GlobeAltIcon } from '@heroicons/react/24/outline';
 
 const LanguageSettings = ({ onDataChange }) => {
-  const { language, setLanguage, LANGUAGES, t } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
 
   const languageOptions = [
     { 
       id: LANGUAGES.EN, 
-      label: 'English',
-      nativeLabel: 'English',
+      label: t('english'),
+      nativeLabel: t('english'),
       flag: '🇬🇧',
-      description: 'Switch to English'
+      description: t('lang_switch_english')
     },
     { 
       id: LANGUAGES.NE, 
-      label: 'नेपाली',
-      nativeLabel: 'नेपाली',
+      label: t('nepali'),
+      nativeLabel: t('nepali'),
       flag: '🇳🇵',
-      description: 'नेपालीमा स्विच गर्नुहोस्'
+      description: t('lang_switch_nepali')
     },
   ];
 
@@ -71,7 +71,7 @@ const LanguageSettings = ({ onDataChange }) => {
                 </div>
                 {isActive && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Active
+                    {t('lang_active')}
                   </span>
                 )}
               </div>
@@ -84,24 +84,18 @@ const LanguageSettings = ({ onDataChange }) => {
       <div className="mt-4 p-4 rounded-lg bg-gray-50 border border-gray-200">
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <GlobeAltIcon className="w-5 h-5 text-gray-400" />
-          <span>Current language:</span>
+          <span>{t('lang_current')}</span>
           <span className="font-medium">
-            {language === LANGUAGES.EN ? 'English 🇬🇧' : 'नेपाली 🇳🇵'}
+            {language === LANGUAGES.EN ? `${t('english')} 🇬🇧` : `${t('nepali')} 🇳🇵`}
           </span>
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
-          <span className="text-xs px-2 py-1 bg-gray-200 rounded">Dashboard</span>
-          <span className="text-xs px-2 py-1 bg-gray-200 rounded">
-            {language === LANGUAGES.EN ? 'Members' : 'सदस्यहरू'}
-          </span>
-          <span className="text-xs px-2 py-1 bg-gray-200 rounded">
-            {language === LANGUAGES.EN ? 'Settings' : 'सेटिङ्स'}
-          </span>
+          <span className="text-xs px-2 py-1 bg-gray-200 rounded">{t('lang_preview_dashboard')}</span>
+          <span className="text-xs px-2 py-1 bg-gray-200 rounded">{t('lang_preview_members')}</span>
+          <span className="text-xs px-2 py-1 bg-gray-200 rounded">{t('lang_preview_settings')}</span>
         </div>
         <p className="mt-2 text-xs text-gray-400">
-          {language === LANGUAGES.EN 
-            ? 'All interface text will be displayed in English' 
-            : 'सबै इन्टरफेस पाठ नेपालीमा देखाइनेछ'}
+          {language === LANGUAGES.EN ? t('lang_hint_english') : t('lang_hint_nepali')}
         </p>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function PasswordInput({
   label,
@@ -16,6 +17,7 @@ export default function PasswordInput({
   labelClassName = 'block text-sm font-medium text-slate-700',
   icon: Icon,
 }) {
+  const { t } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const inputId = id || name;
 
@@ -51,7 +53,7 @@ export default function PasswordInput({
           type="button"
           onClick={() => setShowPassword((prev) => !prev)}
           tabIndex={-1}
-          aria-label={showPassword ? 'Hide password' : 'Show password'}
+          aria-label={showPassword ? t('hide_password') : t('show_password')}
           className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1 rounded-md hover:bg-slate-100 transition"
         >
           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

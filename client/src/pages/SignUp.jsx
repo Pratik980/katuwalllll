@@ -35,12 +35,11 @@ const SignUp = () => {
         updateUser(response.data.user);
       }
 
-      toast.success(response.data.message || 'Account created successfully!');
+      toast.success(response.data.message || t('account_created'));
       navigate('/', { replace: true });
     } catch (requestError) {
       setError(
-        requestError.response?.data?.message ||
-        'Could not create account. Please check your information and try again.'
+        requestError.response?.data?.message || t('sign_up_failed')
       );
     } finally {
       setSubmitting(false);
@@ -48,10 +47,7 @@ const SignUp = () => {
   };
 
   return (
-    <AuthLayout
-      title={t('create_user_account') || 'Create Account'}
-      subtitle={t('create_account_description') || 'Join the family tree and connect with your lineage.'}
-    >
+    <AuthLayout title={t('create_user_account')} subtitle={t('create_account_description')}>
       {error && (
         <div
           role="alert"
@@ -59,7 +55,7 @@ const SignUp = () => {
         >
           <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-semibold">Registration Notice</p>
+            <p className="font-semibold">{t('registration_notice')}</p>
             <p className="mt-0.5 text-xs text-red-700">{error}</p>
           </div>
         </div>
@@ -81,7 +77,7 @@ const SignUp = () => {
               required
               minLength={2}
               maxLength={120}
-              placeholder="e.g. Roshan Katuwal"
+              placeholder={t('name_placeholder')}
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               className="w-full rounded-xl border border-slate-300 pl-10 pr-4 py-2.5 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/10 shadow-2xs"
@@ -102,7 +98,7 @@ const SignUp = () => {
               type="email"
               autoComplete="email"
               required
-              placeholder="your.email@example.com"
+              placeholder={t('email_placeholder')}
               value={form.email}
               onChange={(event) => setForm({ ...form, email: event.target.value })}
               className="w-full rounded-xl border border-slate-300 pl-10 pr-4 py-2.5 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/10 shadow-2xs"
@@ -123,19 +119,19 @@ const SignUp = () => {
             icon={Lock}
           />
           <p className="mt-1.5 text-xs text-slate-500">
-            Password must be at least 12 characters long.
+            {t('password_min_hint')}
           </p>
         </div>
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-800 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:from-emerald-800 hover:to-teal-900 hover:shadow-md transition active:scale-98 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+          className="mt-2 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900 active:scale-98 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span>{t('creating_account') || 'Creating account...'}</span>
+              <span>{t('creating_account')}</span>
             </>
           ) : (
             <>

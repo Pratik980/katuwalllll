@@ -21,8 +21,28 @@ export const addReaction = async (messageId, emoji) => {
   return data;
 };
 
+export const editChatMessage = async (messageId, message) => {
+  const { data } = await axios.put(`/chat/messages/${messageId}`, { message });
+  return data;
+};
+
 export const deleteChatMessage = async (messageId) => {
   const { data } = await axios.delete(`/chat/messages/${messageId}`);
+  return data;
+};
+
+export const unsendChatMessage = async (messageId) => {
+  const { data } = await axios.put(`/chat/messages/${messageId}/unsend`);
+  return data;
+};
+
+export const createChatGroup = async (groupData) => {
+  const { data } = await axios.post('/chat/rooms', groupData);
+  return data.room;
+};
+
+export const deleteChatGroup = async (roomId) => {
+  const { data } = await axios.delete(`/chat/rooms/${roomId}`);
   return data;
 };
 

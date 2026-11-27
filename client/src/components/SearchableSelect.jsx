@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FaSearch, FaChevronDown, FaTimes } from 'react-icons/fa';
+import { useLanguage } from '../context/LanguageContext';
 
 const SearchableSelect = ({
   label,
@@ -7,7 +8,7 @@ const SearchableSelect = ({
   value,
   onChange,
   options = [],
-  placeholder = 'Search...',
+  placeholder,
   required = false,
   icon: Icon,
   creatable = false,
@@ -15,6 +16,7 @@ const SearchableSelect = ({
   error,
   disabled = false,
 }) => {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredOptions, setFilteredOptions] = useState(options);
@@ -131,7 +133,7 @@ const SearchableSelect = ({
         >
           <div className="flex items-center justify-between">
             <span className={`truncate ${displayValue ? 'text-gray-800' : 'text-gray-400'}`}>
-              {displayValue || placeholder}
+              {displayValue || placeholder || t('ss_search')}
             </span>
             <div className="flex items-center gap-1 flex-shrink-0">
               {displayValue && !disabled && (
@@ -159,7 +161,7 @@ const SearchableSelect = ({
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Search..."
+                  placeholder={t('ss_search')}
                   className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-500"
                   onClick={(e) => e.stopPropagation()}
                   autoFocus
@@ -193,11 +195,11 @@ const SearchableSelect = ({
                     setSearchTerm('');
                   }}
                 >
-                  <span>Create "{searchTerm}"</span>
+                  <span>{t('ss_create', { value: searchTerm })}</span>
                 </div>
               ) : (
                 <div className="px-3 py-2 text-sm text-gray-500 text-center">
-                  No options found
+                  {t('ss_no_options')}
                 </div>
               )}
             </div>

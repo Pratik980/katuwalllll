@@ -10,7 +10,6 @@ import {
   getMembersByFamily,
   getMemberStats,
   getMemberOptions,
-  updateVerification,
 } from '../controllers/memberController.js';
 import { validate, memberValidation, validateObjectId } from '../middlewares/validation.js';
 import { uploadSinglePhoto, handleUpload } from '../middlewares/upload.js';
@@ -47,7 +46,7 @@ router.post(
   '/',
   authenticate,
   requireCsrf,
-  requireRole('admin', 'staff'),
+  requireRole('admin', 'staff', 'user'),
   handleUpload(uploadSinglePhoto),
   requireFamilyAccess,
   validate(memberValidation),
@@ -66,17 +65,6 @@ router.put(
   requireMemberFamilyAccess,
   validate(memberValidation),
   updateMember
-);
-
-// Verification is its own small request, separate from the member form
-router.put(
-  '/:id/verification',
-  authenticate,
-  requireCsrf,
-  requireRole('admin', 'staff'),
-  validateObjectId('id', 'Member'),
-  requireMemberFamilyAccess,
-  updateVerification
 );
 
 // DELETE routes

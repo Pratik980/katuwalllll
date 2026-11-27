@@ -15,7 +15,7 @@ export const exportDonationsToExcel = async (donations) => {
     { header: 'Category', key: 'category', width: 15 },
     { header: 'Date', key: 'donationDate', width: 15 },
     { header: 'Status', key: 'paymentStatus', width: 12 },
-    { header: 'Purpose', key: 'purpose', width: 30 },
+    { header: 'Purpose', key: 'donationPurpose', width: 30 },
     { header: 'Remarks', key: 'remarks', width: 30 },
   ];
 
@@ -42,7 +42,7 @@ export const exportDonationsToExcel = async (donations) => {
       category: donation.category ? donation.category.toUpperCase() : 'GENERAL',
       donationDate: donation.donationDate ? new Date(donation.donationDate).toLocaleDateString() : 'N/A',
       paymentStatus: donation.paymentStatus ? donation.paymentStatus.toUpperCase() : 'PENDING',
-      purpose: donation.purpose || 'N/A',
+      donationPurpose: donation.donationPurpose || donation.category || 'N/A',
       remarks: donation.remarks || 'N/A',
     });
 
@@ -54,7 +54,7 @@ export const exportDonationsToExcel = async (donations) => {
 
     // Color status cells
     const statusCell = rowObj.getCell(9);
-    if (donation.paymentStatus === 'completed') {
+    if (donation.paymentStatus === 'paid') {
       statusCell.fill = {
         type: 'pattern',
         pattern: 'solid',
@@ -89,7 +89,7 @@ export const exportDonationsToExcel = async (donations) => {
     category: '',
     donationDate: '',
     paymentStatus: '',
-    purpose: '',
+    donationPurpose: '',
     remarks: '',
   });
 
@@ -104,7 +104,7 @@ export const exportDonationsToExcel = async (donations) => {
   };
 
   // Format currency column
-  worksheet.getColumn('amount').numFmt = '$#,##0.00';
+  worksheet.getColumn('amount').numFmt = 'Rs #,##0.00';
 
   return await workbook.xlsx.writeBuffer();
 };

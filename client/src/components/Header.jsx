@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -21,6 +21,14 @@ const PAGE_TITLES = {
   "family-tree": "family_tree",
   notifications: "notifications",
   reports: "reports",
+  donations: "donations",
+  chat: "chat",
+  documents: "documents",
+  backups: "backups",
+  settings: "settings",
+  profile: "profile",
+  "change-password": "change_password",
+  admin: "admin_users",
 };
 
 export default function Header({ toggleSidebar }) {
@@ -30,11 +38,9 @@ export default function Header({ toggleSidebar }) {
   const { user } = useAuth();
   const { logo, name: orgName } = useOrganization();
   const [search, setSearch] = useState("");
-  const [avatarError, setAvatarError] = useState(false);
-
-  useEffect(() => {
-    setAvatarError(false);
-  }, [user?.photo]);
+  const [failedAvatarSrc, setFailedAvatarSrc] = useState(null);
+  const avatarSrc = user?.photo;
+  const avatarError = Boolean(avatarSrc && failedAvatarSrc === avatarSrc);
 
   const { data: unread } = useQuery({
     queryKey: ["notifications-unread"],
@@ -45,6 +51,9 @@ export default function Header({ toggleSidebar }) {
 
   const pageKey = PAGE_TITLES[location.pathname.split("/")[1] || ""];
   const displayName = user?.name || t('administrator');
+  const roleKey = `role_${user?.role}`;
+  const translatedRole = user?.role ? t(roleKey) : '';
+  const roleLabel = translatedRole === roleKey ? user.role : translatedRole;
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -76,7 +85,7 @@ export default function Header({ toggleSidebar }) {
                 className="h-10 w-10 rounded-xl object-contain border border-slate-200 bg-white p-0.5 shadow-sm"
               />
             ) : (
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-800 text-xs font-bold text-white shadow-sm">
                 KB
               </div>
             )}
@@ -84,9 +93,7 @@ export default function Header({ toggleSidebar }) {
               <h2 className="text-lg font-bold text-slate-800 leading-tight">
                 {pageKey ? t(pageKey) : (orgName || t('app_name'))}
               </h2>
-              <p className="text-xs text-slate-500">
-                {t('welcome_back')} 👋
-              </p>
+              <p className="text-xs text-slate-500">{t('welcome_back')}</p>
             </div>
           </div>
         </div>
@@ -107,9 +114,10 @@ export default function Header({ toggleSidebar }) {
         <div className="flex items-center gap-3">
           <button
             onClick={handleLanguageToggle}
-            className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition text-sm font-medium text-slate-700"
+            title={t('toggle_language')}
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
           >
-            {language === 'en' ? '🇳🇵' : '🇬🇧'}
+            {language === 'en' ? 'NE' : 'EN'}
           </button>
 
           <button
@@ -118,7 +126,7 @@ export default function Header({ toggleSidebar }) {
           >
             <BellIcon className="w-5 h-5 text-slate-700" />
             {unreadCount > 0 && (
-              <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-red-500 border-2 border-white"></span>
+              <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-700"></span>
             )}
           </button>
 
@@ -127,17 +135,17 @@ export default function Header({ toggleSidebar }) {
               <img
                 src={user.photo}
                 alt={displayName}
-                onError={() => setAvatarError(true)}
+                onError={() => setFailedAvatarSrc(avatarSrc)}
                 className="h-10 w-10 rounded-full object-cover border border-slate-200 shadow shrink-0 bg-white"
               />
             ) : (
-              <div className="h-10 w-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold shadow shrink-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-800 font-bold text-white shadow-sm">
                 {displayName.charAt(0).toUpperCase()}
               </div>
             )}
             <div className="hidden lg:block text-left">
               <p className="text-sm font-semibold text-slate-800">{displayName}</p>
-              {user?.role && <p className="text-xs capitalize text-slate-500">{user.role}</p>}
+              {user?.role && <p className="text-xs text-slate-500">{roleLabel}</p>}
             </div>
           </div>
         </div>

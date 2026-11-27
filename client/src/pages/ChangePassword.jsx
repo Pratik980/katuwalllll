@@ -31,7 +31,7 @@ const ChangePassword = () => {
       updateUser(null);
       navigate('/login', { replace: true });
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Password could not be changed.');
+      setError(requestError.response?.data?.message || t('password_change_failed'));
     } finally {
       setBusy(false);
     }

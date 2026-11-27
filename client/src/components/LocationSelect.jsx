@@ -6,6 +6,7 @@ import {
   districts,
   municipalities,
 } from "../data/nepalLocations";
+import { useLanguage } from "../context/LanguageContext";
 
 const LocationSelect = ({
   value,
@@ -15,16 +16,18 @@ const LocationSelect = ({
   province,
   district,
   required = false,
-  placeholder = "Select...",
+  placeholder,
 }) => {
- 
+  const { t } = useLanguage();
+  const resolvedPlaceholder = placeholder || t('select');
+
   const wards = useMemo(
     () =>
       Array.from({ length: 32 }, (_, i) => ({
         value: String(i + 1),
-        label: `Ward ${i + 1}`,
+        label: `${t('de_ward')} ${i + 1}`,
       })),
-    []
+    [t]
   );
 
   
@@ -75,14 +78,14 @@ const LocationSelect = ({
         options={options}
         value={selectedOption}
         onChange={(selected) => onChange(type, selected?.value || "")}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         isSearchable
         isClearable
         isDisabled={
           (type === "district" && !province) ||
           (type === "municipality" && !district)
         }
-        noOptionsMessage={() => "No options available"}
+        noOptionsMessage={() => t('ss_no_options')}
         className="react-select-container"
         classNamePrefix="react-select"
         styles={{

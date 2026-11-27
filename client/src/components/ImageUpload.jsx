@@ -3,8 +3,10 @@ import { CloudArrowUpIcon, CameraIcon, PhotoIcon } from '@heroicons/react/24/out
 import Webcam from "react-webcam";
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '../context/LanguageContext';
 
-const ImageUpload = ({ onImageSelect, label = 'Upload Image', maxSize = 15 }) => {
+const ImageUpload = ({ onImageSelect, label, maxSize = 15 }) => {
+  const { t } = useLanguage();
   const fileInputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
@@ -72,26 +74,26 @@ const ImageUpload = ({ onImageSelect, label = 'Upload Image', maxSize = 15 }) =>
     
     
     if (error.message && error.message.includes('Permission')) {
-      toast.error('Camera permission denied. Please allow camera access and try again.');
+      toast.error(t('iu_camera_permission_denied'));
     } else if (error.message && error.message.includes('NotFound')) {
-      toast.error('No camera found on this device.');
+      toast.error(t('iu_camera_not_found'));
     } else if (error.message && error.message.includes('NotAllowed')) {
-      toast.error('Camera access blocked. Please check your browser settings.');
+      toast.error(t('iu_camera_blocked'));
     } else {
-      toast.error('Failed to access camera. Please check your camera and try again.');
+      toast.error(t('iu_camera_failed'));
     }
   };
 
   const capturePhoto = async () => {
     if (!webcamRef.current) {
-      toast.error("Camera not ready");
+      toast.error(t('iu_camera_not_ready'));
       return;
     }
 
     const imageSrc = webcamRef.current.getScreenshot();
 
     if (!imageSrc) {
-      toast.error("Failed to capture image");
+      toast.error(t('iu_capture_failed'));
       return;
     }
 
@@ -109,7 +111,7 @@ const ImageUpload = ({ onImageSelect, label = 'Upload Image', maxSize = 15 }) =>
       setCameraReady(false);
     } catch (error) {
       console.error('Error capturing photo:', error);
-      toast.error('Failed to save captured image');
+      toast.error(t('iu_save_capture_failed'));
     }
   };
 
@@ -126,13 +128,13 @@ const handleFileSelect = (file) => {
   if (!file) return;
 
   if (file.size > maxSize * 1024 * 1024) {
-    toast.error(`File size exceeds ${maxSize}MB limit`);
+    toast.error(t('iu_file_too_large', { size: maxSize }));
     return;
   }
 
   const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   if (!validTypes.includes(file.type)) {
-    toast.error('Invalid file type. Please upload JPEG, PNG, GIF, or WEBP');
+    toast.error(t('iu_invalid_file_type'));
     return;
   }
 
@@ -186,10 +188,10 @@ const handleFileSelect = (file) => {
       >
         <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400 group-hover:text-green-500 transition-colors" />
         <p className="mt-2 text-sm text-gray-600">
-          {label}
+          {label || t('iu_upload_image')}
         </p>
         <p className="text-xs text-gray-500">
-          Click to upload (Max {maxSize}MB)
+          {t('iu_click_upload', { size: maxSize })}
         </p>
       </div>
 
@@ -222,7 +224,7 @@ const handleFileSelect = (file) => {
 
                 
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-semibold text-gray-800">Choose Option</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('iu_choose_option')}</h3>
                   <button
                     onClick={() => setShowOptions(false)}
                     className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -244,10 +246,10 @@ const handleFileSelect = (file) => {
                       <CameraIcon className="h-7 w-7 text-white" />
                     </div>
                     <div className="text-left flex-1">
-                      <div className="font-semibold text-green-800 text-base">Take Photo</div>
-                      <div className="text-sm text-green-600">Open camera to capture</div>
+                      <div className="font-semibold text-green-800 text-base">{t('iu_take_photo')}</div>
+                      <div className="text-sm text-green-600">{t('iu_open_camera')}</div>
                     </div>
-                    <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">Camera</span>
+                    <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">{t('iu_camera')}</span>
                   </button>
 
                   
@@ -259,10 +261,10 @@ const handleFileSelect = (file) => {
                       <PhotoIcon className="h-7 w-7 text-white" />
                     </div>
                     <div className="text-left flex-1">
-                      <div className="font-semibold text-blue-800 text-base">Choose from Gallery</div>
-                      <div className="text-sm text-blue-600">Select from your device</div>
+                      <div className="font-semibold text-blue-800 text-base">{t('iu_choose_gallery')}</div>
+                      <div className="text-sm text-blue-600">{t('iu_select_device')}</div>
                     </div>
-                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">Gallery</span>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">{t('iu_gallery')}</span>
                   </button>
                 </div>
 
@@ -270,7 +272,7 @@ const handleFileSelect = (file) => {
                   onClick={() => setShowOptions(false)}
                   className="w-full mt-4 py-3.5 text-center text-gray-500 font-medium hover:bg-gray-50 rounded-xl transition-colors"
                 >
-                  Cancel
+                  {t('iu_cancel')}
                 </button>
               </div>
             </motion.div>
@@ -311,8 +313,8 @@ const handleFileSelect = (file) => {
               {!cameraReady && !cameraError && (
                 <div className="flex flex-col items-center justify-center h-64">
                   <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="mt-4 text-gray-600">Initializing camera...</p>
-                  <p className="text-sm text-gray-400">Using back camera if available</p>
+                  <p className="mt-4 text-gray-600">{t('iu_initializing')}</p>
+                  <p className="text-sm text-gray-400">{t('iu_back_camera_hint')}</p>
                 </div>
               )}
 
@@ -320,9 +322,9 @@ const handleFileSelect = (file) => {
               {cameraError && (
                 <div className="flex flex-col items-center justify-center h-64 p-4">
                   <div className="text-6xl mb-4">📷</div>
-                  <p className="text-gray-800 font-semibold text-center">Camera Unavailable</p>
+                  <p className="text-gray-800 font-semibold text-center">{t('iu_camera_unavailable')}</p>
                   <p className="text-gray-600 text-sm text-center mt-2">
-                    Please check your camera permissions and try again.
+                    {t('iu_camera_permission_hint')}
                   </p>
                   <button
                     onClick={() => {
@@ -333,7 +335,7 @@ const handleFileSelect = (file) => {
                     }}
                     className="mt-4 px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
                   >
-                    Retry
+                    {t('iu_retry')}
                   </button>
                 </div>
               )}
@@ -361,7 +363,7 @@ const handleFileSelect = (file) => {
                     onClick={() => setShowCamera(false)}
                     className="px-6 py-2.5 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors font-medium"
                   >
-                    Cancel
+                    {t('iu_cancel')}
                   </button>
 
                   <button
@@ -369,7 +371,7 @@ const handleFileSelect = (file) => {
                     className="px-6 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 transition-colors text-white font-medium flex items-center gap-2"
                   >
                     <span>📸</span>
-                    Capture
+                    {t('iu_capture')}
                   </button>
                 </div>
               )}

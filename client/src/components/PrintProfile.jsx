@@ -44,15 +44,6 @@ const PrintProfile = ({ member, onClose }) => {
             <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs">
               {member.isAlive ? 'Living' : 'Deceased'}
             </span>
-            {member.verificationStatus && (
-              <span className={`px-2 py-0.5 rounded-full text-xs ${
-                member.verificationStatus === 'verified' ? 'bg-green-100 text-green-800' :
-                member.verificationStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {member.verificationStatus.charAt(0).toUpperCase() + member.verificationStatus.slice(1)}
-              </span>
-            )}
           </div>
         </div>
       </div>

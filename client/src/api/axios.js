@@ -2,6 +2,44 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { getCsrfToken, setCsrfToken } from './csrfToken';
+import { translations } from '../translations';
+
+const CODE_ERROR_KEYS = {
+  POSSIBLE_DUPLICATE: 'error_possible_duplicate',
+  DUPLICATE_CITIZENSHIP: 'error_duplicate_citizenship',
+  FILE_TOO_LARGE: 'error_file_too_large',
+  UPLOAD_ERROR: 'error_upload_error',
+};
+
+const STATUS_ERROR_KEYS = {
+  400: 'error_bad_request',
+  401: 'error_unauthorized',
+  403: 'error_forbidden',
+  404: 'error_not_found',
+  409: 'error_conflict',
+  500: 'error_server',
+  503: 'error_unavailable',
+};
+
+const getErrorDictionary = () => {
+  try {
+    const language = localStorage.getItem('language');
+    return translations[language] || translations.en;
+  } catch {
+    return translations.en;
+  }
+};
+
+const translateApiError = (message, status, code) => {
+  const dict = getErrorDictionary();
+  const codeKey = CODE_ERROR_KEYS[code];
+  if (codeKey) return dict[codeKey];
+  if (!message || message === 'Something went wrong') {
+    const statusKey = STATUS_ERROR_KEYS[status];
+    return statusKey ? dict[statusKey] : dict.error_generic;
+  }
+  return message;
+};
 
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
@@ -74,7 +112,11 @@ axiosInstance.interceptors.response.use(
     }
 
     const data = error.response?.data;
-    const message = data?.message || data?.errors?.[0]?.message || 'Something went wrong';
+    const message = translateApiError(
+      data?.message || data?.errors?.[0]?.message,
+      status,
+      data?.code
+    );
 
     // Don't show toast for 404 errors in search.
     if (!config._skipErrorToast && status !== 401 && status !== 404 && data?.code !== 'POSSIBLE_DUPLICATE') {

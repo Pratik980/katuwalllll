@@ -4,12 +4,29 @@ import Family from '../models/Family.js';
 import Member from '../models/Member.js';
 import User from '../models/User.js';
 import { io } from '../server.js';
+import { deleteAsset } from '../utils/cloudinaryAssets.js';
 import { sendAuthNotificationEmail, sendStaffAccountEmail } from '../utils/authEmail.js';
 
 const validPassword = (password) => typeof password === 'string' && password.length >= 12 && password.length <= 128;
 const validObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
+const validStaffPhone = (phone) => {
+  const text = String(phone || '').trim();
+  const digits = text.replace(/\D/g, '');
+  return text.length <= 30 && digits.length >= 7 && digits.length <= 15;
+};
 const userFields = 'name email phone photo role emailVerified isActive linkedMember allowedFamilies preferredLanguage mustChangePassword createdAt updatedAt';
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const parseFamilyIds = (raw) => {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [raw];
+  } catch {
+    return [raw];
+  }
+};
 
 const loginUrl = () => (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL.replace(/\/$/, '')}/login` : 'the application');
 const populatedUser = async (id) => User.findById(id)
@@ -42,15 +59,58 @@ export const listUsers = async (req, res, next) => {
   }
 };
 
+export const listStaff = async (req, res, next) => {
+  try {
+    const page = Math.max(1, Number.parseInt(req.query.page || '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit || '50', 10) || 50));
+    const search = String(req.query.search || '').trim().slice(0, 100);
+    const status = String(req.query.status || '').trim();
+    const query = { role: 'staff' };
+
+    if (status === 'active') query.isActive = true;
+    if (status === 'inactive') query.isActive = false;
+    if (search) {
+      const regex = new RegExp(escapeRegex(search), 'i');
+      query.$or = [{ name: regex }, { email: regex }, { phone: regex }];
+    }
+
+    const [staff, total, activeCount, inactiveCount] = await Promise.all([
+      User.find(query)
+        .select(userFields)
+        .populate('allowedFamilies', 'familyName familyNumber')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(query),
+      User.countDocuments({ role: 'staff', isActive: true }),
+      User.countDocuments({ role: 'staff', isActive: false }),
+    ]);
+
+    res.json({
+      data: staff,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) || 1 },
+      counts: { total: activeCount + inactiveCount, active: activeCount, inactive: inactiveCount },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createStaff = async (req, res, next) => {
   try {
     const name = String(req.body.name || '').trim();
     const email = String(req.body.email || '').trim().toLowerCase();
+    const phone = String(req.body.phone || '').trim();
     const { password } = req.body;
-    const allowedFamilyIds = Array.isArray(req.body.allowedFamilies) ? req.body.allowedFamilies : [];
+    const allowedFamilyIds = parseFamilyIds(req.body.allowedFamilies);
+    const photo = req.file?.path || req.file?.secure_url || null;
 
     if (name.length < 2 || name.length > 120 || !validEmail(email)) {
       return res.status(400).json({ message: 'Enter a valid staff name and email address.' });
+    }
+    if (!validStaffPhone(phone)) {
+      return res.status(400).json({ message: 'Enter a valid staff phone number.' });
     }
     if (!validPassword(password)) {
       return res.status(400).json({ message: 'Staff password must be at least 12 characters and no more than 128 characters.' });
@@ -71,6 +131,8 @@ export const createStaff = async (req, res, next) => {
     const user = await User.create({
       name,
       email,
+      phone,
+      photo,
       passwordHash: await bcrypt.hash(password, 12),
       role: 'staff',
       emailVerified: true,
@@ -118,6 +180,17 @@ export const updateManagedUser = async (req, res, next) => {
         return res.status(409).json({ message: 'An account with this email already exists.' });
       }
       updates.email = email;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, 'phone')) {
+      const phone = String(req.body.phone || '').trim();
+      if (user.role === 'staff' && !validStaffPhone(phone)) {
+        return res.status(400).json({ message: 'Enter a valid staff phone number.' });
+      }
+      if (phone && !validStaffPhone(phone)) {
+        return res.status(400).json({ message: 'Enter a valid phone number.' });
+      }
+      updates.phone = phone;
     }
 
     if (Object.prototype.hasOwnProperty.call(req.body, 'isActive')) {
@@ -170,6 +243,28 @@ export const updateManagedUser = async (req, res, next) => {
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
     if (error.code === 11000) return res.status(409).json({ message: 'This email or linked member is already in use.' });
+    next(error);
+  }
+};
+
+export const updateManagedUserPhoto = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ message: 'User account not found.' });
+    if (user.role !== 'staff') return res.status(400).json({ message: 'Profile photos can only be managed for staff here.' });
+
+    const removePhoto = req.body.removePhoto === 'true' || req.body.removePhoto === true;
+    if (!req.file?.path && !removePhoto) {
+      return res.status(400).json({ message: 'Choose a photo to upload.' });
+    }
+
+    const previousPhoto = user.photo;
+    user.photo = removePhoto ? null : (req.file?.path || req.file?.secure_url || null);
+    await user.save();
+    if (previousPhoto && previousPhoto !== user.photo) await deleteAsset(previousPhoto);
+
+    res.json({ user: await populatedUser(user._id) });
+  } catch (error) {
     next(error);
   }
 };

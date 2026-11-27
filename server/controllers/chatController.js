@@ -1,8 +1,11 @@
+import { randomUUID } from 'crypto';
+import mongoose from 'mongoose';
 import Chat from '../models/Chat.js';
+import ChatGroup from '../models/ChatGroup.js';
+import User from '../models/User.js';
 import { io } from '../server.js';
 
-// Predefined chat rooms
-const CHAT_ROOMS = [
+const DEFAULT_ROOM_IDS = [
   'general',
   'announcements',
   'family_discussion',
@@ -13,55 +16,103 @@ const CHAT_ROOMS = [
 const ROOM_METADATA = {
   general: {
     name: 'General',
-    description: 'Open family discussions & community updates for everyone',
+    description: 'Open family discussions and community updates for everyone',
     icon: 'MessageSquare',
-    theme: 'emerald',
   },
   announcements: {
     name: 'Announcements',
-    description: 'Official notices, decisions & central committee notices',
+    description: 'Official notices, decisions and central committee updates',
     icon: 'Megaphone',
-    theme: 'amber',
   },
   family_discussion: {
     name: 'Family Discussion',
-    description: 'Heritage, branches, gotra, and regional lineages',
+    description: 'Heritage, branches, gotra and regional lineages',
     icon: 'Users',
-    theme: 'indigo',
   },
   events: {
     name: 'Events & Puja',
-    description: 'Kulpuja, festive gatherings, annual meetings & rites',
+    description: 'Kulpuja, festive gatherings, annual meetings and rites',
     icon: 'Calendar',
-    theme: 'purple',
   },
   genealogy_help: {
     name: 'Genealogy Help',
-    description: 'Help with adding ancestors, family trees & verification',
+    description: 'Help with adding ancestors, family trees and verification',
     icon: 'BookOpen',
-    theme: 'cyan',
   },
+};
+
+const GROUP_ROOM_PATTERN = /^group_[0-9a-f-]{36}$/i;
+const isDefaultRoom = (room) => DEFAULT_ROOM_IDS.includes(room);
+const cleanText = (value, max) => String(value || '').trim().slice(0, max);
+const invalidId = (res, id, resource) => {
+  if (mongoose.isValidObjectId(id)) return false;
+  res.status(400).json({ message: `Invalid ${resource} ID.` });
+  return true;
+};
+const sanitizeMessage = (chat) => {
+  const data = typeof chat.toObject === 'function' ? chat.toObject() : { ...chat };
+  if (data.isDeleted) {
+    data.message = '';
+    data.attachments = [];
+  }
+  return data;
+};
+
+const getGroup = async (roomId) => {
+  if (!GROUP_ROOM_PATTERN.test(String(roomId || ''))) return null;
+  return ChatGroup.findOne({ roomId, isActive: true }).lean();
+};
+
+const roomAllowed = async (roomId) => isDefaultRoom(roomId) || Boolean(await getGroup(roomId));
+
+const sanitizeAttachments = (attachments) => {
+  if (!Array.isArray(attachments)) return [];
+  return attachments
+    .slice(0, 4)
+    .filter((attachment) => attachment && typeof attachment.url === 'string' && /^https?:\/\//i.test(attachment.url))
+    .filter((attachment) => !attachment.fileType || String(attachment.fileType).startsWith('image/'))
+    .map((attachment) => ({
+      url: attachment.url,
+      name: cleanText(attachment.name, 200),
+      fileType: cleanText(attachment.fileType || 'image/jpeg', 80),
+      size: Number(attachment.size) || 0,
+    }));
 };
 
 export const getChatRooms = async (req, res) => {
   try {
+    const groups = await ChatGroup.find({ isActive: true })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const rooms = [
+      ...DEFAULT_ROOM_IDS.map((roomId) => ({
+        id: roomId,
+        ...ROOM_METADATA[roomId],
+        theme: 'emerald',
+        isGroup: false,
+        createdBy: null,
+      })),
+      ...groups.map((group) => ({
+        id: group.roomId,
+        name: group.name,
+        description: group.description || 'Custom group conversation',
+        icon: 'Users',
+        theme: 'emerald',
+        isGroup: true,
+        createdBy: group.createdBy,
+        createdByName: group.createdByName,
+        createdAt: group.createdAt,
+      })),
+    ];
+
     const roomsWithLastMsg = await Promise.all(
-      CHAT_ROOMS.map(async (roomId) => {
-        const meta = ROOM_METADATA[roomId] || {
-          name: roomId.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-          description: '',
-          icon: 'MessageSquare',
-          theme: 'emerald',
-        };
-        const lastMsg = await Chat.findOne({ room: roomId, isDeleted: false })
+      rooms.map(async (room) => {
+        const lastMsg = await Chat.findOne({ room: room.id, isDeleted: false })
           .sort({ createdAt: -1 })
           .select('message senderName createdAt');
         return {
-          id: roomId,
-          name: meta.name,
-          description: meta.description,
-          icon: meta.icon,
-          theme: meta.theme,
+          ...room,
           lastMessage: lastMsg ? {
             text: lastMsg.message,
             sender: lastMsg.senderName,
@@ -70,7 +121,92 @@ export const getChatRooms = async (req, res) => {
         };
       })
     );
+
     res.json({ rooms: roomsWithLastMsg });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const createChatGroup = async (req, res) => {
+  try {
+    const name = cleanText(req.body.name, 80);
+    const description = cleanText(req.body.description, 300);
+    if (name.length < 2) {
+      return res.status(400).json({ message: 'Group name must be at least 2 characters.' });
+    }
+    if (await ChatGroup.exists({ name, isActive: true })) {
+      return res.status(409).json({ message: 'A group with this name already exists.' });
+    }
+
+    const isAdminGroup = req.user.role === 'admin' && req.body.isAdminGroup === true;
+    const group = await ChatGroup.create({
+      roomId: `group_${randomUUID()}`,
+      name,
+      description,
+      createdBy: req.user._id,
+      createdByName: req.user.name,
+      ownerRole: req.user.role || 'user',
+      isAdminGroup,
+    });
+
+    const payload = {
+      id: group.roomId,
+      name: group.name,
+      description: group.description,
+      icon: 'Users',
+      theme: 'emerald',
+      isGroup: true,
+      createdBy: group.createdBy,
+      createdByName: group.createdByName,
+      createdAt: group.createdAt,
+      isAdminGroup: group.isAdminGroup,
+      lastMessage: null,
+    };
+    if (io) io.emit('chat:room-created', payload);
+    res.status(201).json({ room: payload });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: 'A group with this name already exists.' });
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const deleteChatGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const isRoomId = GROUP_ROOM_PATTERN.test(String(groupId || ''));
+    if (!isRoomId && !mongoose.isValidObjectId(groupId)) {
+      return res.status(400).json({ message: 'Invalid group ID.' });
+    }
+    const group = isRoomId
+      ? await ChatGroup.findOne({ roomId: groupId })
+      : await ChatGroup.findById(groupId);
+
+    if (!group || !group.isActive) {
+      return res.status(404).json({ message: 'Chat group not found.' });
+    }
+    if (req.user.role !== 'admin') {
+      if (group.isAdminGroup || group.ownerRole === 'admin') {
+        return res.status(403).json({ message: 'Only an administrator can delete this group.' });
+      }
+      if (!group.ownerRole) {
+        const owner = await User.findById(group.createdBy).select('role').lean();
+        if (owner?.role === 'admin') {
+          return res.status(403).json({ message: 'Only an administrator can delete this group.' });
+        }
+      }
+      if (String(group.createdBy) !== String(req.user._id)) {
+        return res.status(403).json({ message: 'Only the group creator can delete this group.' });
+      }
+    }
+
+    await Promise.all([
+      Chat.deleteMany({ room: group.roomId }),
+      ChatGroup.deleteOne({ _id: group._id }),
+    ]);
+
+    if (io) io.emit('chat:room-deleted', { roomId: group.roomId, groupId: String(group._id) });
+    res.json({ message: 'Chat group deleted successfully.', roomId: group.roomId });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -82,8 +218,8 @@ export const getChatMessages = async (req, res) => {
     const page = Number.parseInt(req.query.page || '1', 10);
     const limit = Number.parseInt(req.query.limit || '50', 10);
 
-    if (!CHAT_ROOMS.includes(room)) {
-      return res.status(400).json({ message: 'Invalid chat room' });
+    if (!(await roomAllowed(room))) {
+      return res.status(404).json({ message: 'Chat room not found.' });
     }
     if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
       return res.status(400).json({ message: 'Invalid message page or page size.' });
@@ -100,7 +236,7 @@ export const getChatMessages = async (req, res) => {
     ]);
 
     res.json({
-      data: messages.reverse(),
+      data: messages.map(sanitizeMessage).reverse(),
       pagination: {
         page,
         limit,
@@ -115,20 +251,21 @@ export const getChatMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { room, message, replyTo, attachments } = req.body;
+    const { room, message, replyTo } = req.body;
 
-    if (!CHAT_ROOMS.includes(room)) {
-      return res.status(400).json({ message: 'Invalid chat room' });
+    if (!(await roomAllowed(room))) {
+      return res.status(404).json({ message: 'Chat room not found.' });
     }
 
-    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
-    const hasText = typeof message === 'string' && message.trim().length > 0;
+    const attachments = sanitizeAttachments(req.body.attachments);
+    const hasAttachments = attachments.length > 0;
+    const text = typeof message === 'string' ? message.trim() : '';
+    const hasText = text.length > 0;
 
     if (!hasText && !hasAttachments) {
-      return res.status(400).json({ message: 'Message or attachment is required.' });
+      return res.status(400).json({ message: 'Message or image is required.' });
     }
-
-    if (hasText && message.length > 2000) {
+    if (hasText && text.length > 2000) {
       return res.status(400).json({ message: 'Message must not exceed 2000 characters.' });
     }
 
@@ -137,24 +274,45 @@ export const sendMessage = async (req, res) => {
       sender: req.user._id,
       senderName: req.user.name,
       senderRole: req.user.role || 'user',
-      message: hasText ? message.trim() : 'Shared an attachment',
+      message: hasText ? text : 'Shared an image',
       replyTo: replyTo && replyTo.messageId ? {
         messageId: replyTo.messageId,
-        senderName: replyTo.senderName,
-        messageText: replyTo.messageText,
+        senderName: cleanText(replyTo.senderName, 120),
+        messageText: cleanText(replyTo.messageText, 300),
       } : null,
-      attachments: hasAttachments ? attachments : [],
+      attachments,
     });
 
     await chatMessage.save();
-
-    if (io) {
-      io.to(room).emit('chat:message', chatMessage);
-    }
+    if (io) io.to(room).emit('chat:message', chatMessage);
 
     res.status(201).json(chatMessage);
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+};
+
+export const editChatMessage = async (req, res) => {
+  try {
+    if (invalidId(res, req.params.id, 'message')) return;
+    const chat = await Chat.findById(req.params.id);
+    if (!chat || chat.isDeleted) return res.status(404).json({ message: 'Message not found.' });
+    if (String(chat.sender) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'You can only edit your own messages.' });
+    }
+
+    const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+    if (!message) return res.status(400).json({ message: 'Message text is required.' });
+    if (message.length > 2000) return res.status(400).json({ message: 'Message must not exceed 2000 characters.' });
+
+    chat.message = message;
+    chat.editedAt = new Date();
+    await chat.save();
+
+    if (io) io.to(chat.room).emit('chat:updated', chat);
+    res.json(chat);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -163,17 +321,18 @@ export const addReaction = async (req, res) => {
     const { id } = req.params;
     const { emoji } = req.body;
 
-    if (!emoji || typeof emoji !== 'string') {
+    if (invalidId(res, id, 'message')) return;
+    if (!emoji || typeof emoji !== 'string' || emoji.length > 16) {
       return res.status(400).json({ message: 'Emoji is required.' });
     }
 
     const chat = await Chat.findById(id);
-    if (!chat) {
+    if (!chat || chat.isDeleted) {
       return res.status(404).json({ message: 'Message not found' });
     }
 
     const existingIndex = chat.reactions.findIndex(
-      (r) => String(r.userId) === String(req.user._id) && r.emoji === emoji
+      (reaction) => String(reaction.userId) === String(req.user._id) && reaction.emoji === emoji
     );
 
     if (existingIndex > -1) {
@@ -204,24 +363,16 @@ export const addReaction = async (req, res) => {
 
 export const deleteChatMessage = async (req, res) => {
   try {
-    const { id } = req.params;
-    const chat = await Chat.findById(id);
-    if (!chat) {
-      return res.status(404).json({ message: 'Message not found' });
-    }
+    if (invalidId(res, req.params.id, 'message')) return;
+    const chat = await Chat.findById(req.params.id);
+    if (!chat) return res.status(404).json({ message: 'Message not found' });
 
     const isSender = String(chat.sender) === String(req.user._id);
-    const isAdmin = req.user.role === 'admin';
-
-    if (!isSender && !isAdmin) {
-      return res.status(403).json({ message: 'You are not authorized to delete this message.' });
+    if (!isSender) {
+      return res.status(403).json({ message: 'You can only delete your own messages.' });
     }
 
-    chat.isDeleted = true;
-    chat.message = 'This message was deleted';
-    chat.attachments = [];
-    await chat.save();
-
+    await Chat.deleteOne({ _id: chat._id });
     if (io) {
       io.to(chat.room).emit('chat:deleted', {
         messageId: chat._id,
@@ -235,13 +386,35 @@ export const deleteChatMessage = async (req, res) => {
   }
 };
 
+export const unsendChatMessage = async (req, res) => {
+  try {
+    if (invalidId(res, req.params.id, 'message')) return;
+    const chat = await Chat.findById(req.params.id);
+    if (!chat) return res.status(404).json({ message: 'Message not found' });
+    if (String(chat.sender) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'You can only unsend your own messages.' });
+    }
+
+    chat.isDeleted = true;
+    chat.message = '';
+    chat.attachments = [];
+    await chat.save({ validateBeforeSave: false });
+
+    const sanitized = sanitizeMessage(chat);
+    if (io) io.to(chat.room).emit('chat:updated', sanitized);
+    res.json(sanitized);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const uploadChatFile = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+      return res.status(400).json({ message: 'Choose an image to upload.' });
     }
     res.status(201).json({
-      url: req.file.path,
+      url: req.file.path || req.file.secure_url,
       name: req.file.originalname,
       fileType: req.file.mimetype,
       size: req.file.size,
@@ -254,14 +427,13 @@ export const uploadChatFile = async (req, res) => {
 export const markMessagesAsRead = async (req, res) => {
   try {
     const { room } = req.params;
-
-    if (!CHAT_ROOMS.includes(room)) {
-      return res.status(400).json({ message: 'Invalid chat room' });
+    if (!(await roomAllowed(room))) {
+      return res.status(404).json({ message: 'Chat room not found.' });
     }
 
     await Chat.updateMany(
       { room, isRead: false, sender: { $ne: req.user._id }, readBy: { $ne: req.user._id } },
-      { 
+      {
         $addToSet: { readBy: req.user._id },
         readAt: new Date(),
       }
@@ -275,8 +447,10 @@ export const markMessagesAsRead = async (req, res) => {
 
 export const getUnreadCount = async (req, res) => {
   try {
+    const groups = await ChatGroup.find({ isActive: true }).select('roomId').lean();
+    const roomIds = [...DEFAULT_ROOM_IDS, ...groups.map((group) => group.roomId)];
     const counts = await Promise.all(
-      CHAT_ROOMS.map(async (room) => {
+      roomIds.map(async (room) => {
         const count = await Chat.countDocuments({
           room,
           isRead: false,

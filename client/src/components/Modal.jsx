@@ -1,8 +1,10 @@
 import { Fragment, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { useLanguage } from '../context/LanguageContext';
 
 const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
+  const { t } = useLanguage();
   const sizes = {
     sm: 'max-w-md',
     md: 'max-w-2xl',
@@ -61,7 +63,7 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
                   <button
                     onClick={onClose}
                     className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-                    aria-label="Close modal"
+                    aria-label={t('close_modal')}
                   >
                     <XMarkIcon className="h-6 w-6 text-gray-500" />
                   </button>

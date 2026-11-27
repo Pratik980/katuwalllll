@@ -240,7 +240,9 @@ const chatRooms = new Set([
 
 const resolveChatRoom = (payload) => {
   const room = typeof payload === 'string' ? payload : payload?.room;
-  return typeof room === 'string' && chatRooms.has(room) ? room : null;
+  return typeof room === 'string' && (chatRooms.has(room) || /^group_[0-9a-f-]{36}$/i.test(room))
+    ? room
+    : null;
 };
 
 io.use(async (socket, next) => {

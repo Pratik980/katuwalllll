@@ -1,9 +1,9 @@
-// src/pages/Documents.jsx
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDocuments, deleteDocument, verifyDocument } from '../api/documents';
 import { getMembers } from '../api/members';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import Table from '../components/Table';
 import Button from '../components/Button';
 import Modal from '../components/Modal';
@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 
 const Documents = () => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const canManage = user?.role === 'admin';
   const [page, setPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,7 +34,7 @@ const Documents = () => {
     mutationFn: deleteDocument,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Document deleted successfully');
+      toast.success(t('document_deleted'));
     },
   });
 
@@ -41,12 +42,12 @@ const Documents = () => {
     mutationFn: verifyDocument,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Document verified successfully');
+      toast.success(t('document_verified'));
     },
   });
 
   const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this document?')) {
+    if (window.confirm(t('delete_document_confirm'))) {
       deleteMutation.mutate(id);
     }
   };
@@ -56,27 +57,27 @@ const Documents = () => {
   };
 
   const columns = [
-    { key: 'title', label: 'Title' },
-    { key: 'documentType', label: 'Type' },
-    { key: 'member', label: 'Member', type: 'member' },
-    { key: 'isVerified', label: 'Verified', type: 'verified' },
-    { key: 'createdAt', label: 'Uploaded', type: 'date' },
+    { key: 'title', label: t('document_title') },
+    { key: 'documentType', label: t('document_type') },
+    { key: 'member', label: t('member'), type: 'member' },
+    { key: 'isVerified', label: t('verified'), type: 'verified' },
+    { key: 'createdAt', label: t('uploaded'), type: 'date' },
   ];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
-          <p className="text-gray-600">Manage all uploaded documents</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('documents')}</h1>
+          <p className="text-slate-600">{t('documents_description')}</p>
         </div>
         {canManage && (
           <Button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center shadow-lg shadow-green-200"
           >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Upload Document
+            <PlusIcon className="mr-2 h-5 w-5" />
+            {t('upload_document')}
           </Button>
         )}
       </div>
@@ -91,7 +92,7 @@ const Documents = () => {
             }}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="">All Members</option>
+            <option value="">{t('all_members')}</option>
             {membersData?.data?.map((member) => (
               <option key={member._id} value={member._id}>
                 {member.name}
@@ -111,7 +112,7 @@ const Documents = () => {
                 <button
                   onClick={() => handleVerify(item._id)}
                   className="text-green-600 hover:text-green-900 mr-3"
-                  title="Verify"
+                  title={t('verify_document')}
                 >
                   <CheckCircleIcon className="h-5 w-5" />
                 </button>
@@ -130,7 +131,7 @@ const Documents = () => {
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          title="Upload Document"
+          title={t('upload_document')}
           size="md"
         >
           <DocumentUpload

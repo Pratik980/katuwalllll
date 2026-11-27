@@ -1,24 +1,28 @@
 const colorMap = {
-  green: 'bg-green-100 text-green-600',
-  blue: 'bg-blue-100 text-blue-600',
-  red: 'bg-red-100 text-red-600',
-  purple: 'bg-purple-100 text-purple-600',
-  yellow: 'bg-yellow-100 text-yellow-600',
+  green: 'bg-emerald-50 text-emerald-800',
+  emerald: 'bg-emerald-50 text-emerald-800',
+  neutral: 'bg-slate-100 text-slate-700',
+  blue: 'bg-emerald-50 text-emerald-800',
+  indigo: 'bg-emerald-50 text-emerald-800',
+  pink: 'bg-emerald-50 text-emerald-800',
+  purple: 'bg-emerald-50 text-emerald-800',
+  red: 'bg-emerald-50 text-emerald-800',
+  yellow: 'bg-emerald-50 text-emerald-800',
 };
 
 const StatCard = ({ title, value, icon: Icon, color = 'green' }) => {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+    <article className="dashboard-surface dashboard-stat rounded-2xl p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
         </div>
-        <div className={`p-3 rounded-full ${colorMap[color]}`}>
-          <Icon className="h-6 w-6" />
-        </div>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${colorMap[color] || colorMap.green}`}>
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </span>
       </div>
-    </div>
+    </article>
   );
 };
 

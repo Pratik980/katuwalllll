@@ -637,24 +637,24 @@ const Settings = () => {
   };
 
   const navItems = [
-    { id: 'language', label: t('language') || 'Language', icon: Icons.Languages },
+    { id: 'language', label: t('language'), icon: Icons.Languages },
     ...(isAdmin ? [
-      { id: 'general', label: t('site_settings') || t('general') || 'Site Settings', icon: Icons.Building2 },
-      { id: 'notifications', label: t('notifications') || 'Notifications', icon: Icons.Bell },
-      { id: 'documents', label: t('documents') || 'Documents', icon: Icons.FileText },
-      { id: 'reports', label: t('reports') || 'Reports', icon: Icons.BarChart3 },
-      { id: 'system', label: t('system') || 'System', icon: Icons.Settings },
-      { id: 'security', label: t('security') || 'Security', icon: Icons.Shield },
-      { id: 'backups', label: t('backups') || 'Backups', icon: Icons.Archive },
+      { id: 'general', label: t('site_settings'), icon: Icons.Building2 },
+      { id: 'notifications', label: t('notifications'), icon: Icons.Bell },
+      { id: 'documents', label: t('documents'), icon: Icons.FileText },
+      { id: 'reports', label: t('reports'), icon: Icons.BarChart3 },
+      { id: 'system', label: t('system'), icon: Icons.Settings },
+      { id: 'security', label: t('security'), icon: Icons.Shield },
+      { id: 'backups', label: t('backups'), icon: Icons.Archive },
     ] : []),
-    { id: 'account', label: t('account') || 'Account', icon: Icons.UserRound },
-    { id: 'about', label: t('about') || 'About', icon: Icons.Info },
+    { id: 'account', label: t('account'), icon: Icons.UserRound },
+    { id: 'about', label: t('about'), icon: Icons.Info },
   ];
 
   const handleLanguageChange = async (newLanguage) => {
     if (await setLanguage(newLanguage)) {
       setHasUnsavedChanges(true);
-      toast.success(t('language_changed') || 'Language changed successfully');
+      toast.success(t('language_changed'));
     }
   };
 
@@ -662,10 +662,10 @@ const Settings = () => {
     setIsLoading(true);
     try {
       localStorage.setItem('language', language);
-      toast.success(t('settings_saved') || 'Settings saved successfully');
+      toast.success(t('settings_saved'));
       setHasUnsavedChanges(false);
     } catch (error) {
-      toast.error(t('error_saving_settings') || 'Failed to save settings');
+      toast.error(t('error_saving_settings'));
     } finally {
       setIsLoading(false);
     }
@@ -677,12 +677,8 @@ const Settings = () => {
         return (
           <div className="space-y-6">
             <div className="border-b border-gray-200 pb-3">
-              <h3 className="text-xl font-bold text-gray-900">
-                {t('site_settings') || 'Site Settings'}
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                {t('site_settings_desc') || 'Manage organization branding, logo and portal details'}
-              </p>
+              <h3 className="text-xl font-bold text-slate-900">{t('site_settings')}</h3>
+              <p className="mt-1 text-sm text-slate-500">{t('site_settings_desc')}</p>
             </div>
             <GeneralSettings data={data} onDataChange={refreshSettings} />
           </div>
@@ -709,53 +705,43 @@ const Settings = () => {
       case 'language':
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900">
-              {t('language_settings') || 'Language Settings'}
-            </h3>
+            <h3 className="text-lg font-semibold text-slate-900">{t('language_settings')}</h3>
             
             <div className="space-y-4">
-              <label className="block text-sm font-medium text-gray-700">
-                {t('select_language') || 'Select Language'}
+              <label className="block text-sm font-medium text-slate-700">
+                {t('select_language')}
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => handleLanguageChange('en')}
-                  className={`p-4 rounded-xl border-2 transition-all ${
+                  className={`rounded-xl border-2 p-4 transition-all ${
                     language === 'en'
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-200 hover:border-green-300'
+                      ? 'border-emerald-700 bg-emerald-50'
+                      : 'border-slate-200 hover:border-emerald-300'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">🇬🇧</span>
                     <div className="text-left">
-                      <div className="font-medium text-gray-900">English</div>
-                      <div className="text-sm text-gray-500">English (US)</div>
+                      <div className="font-medium text-slate-900">{t('english')}</div>
                     </div>
                   </div>
                 </button>
                 <button
                   onClick={() => handleLanguageChange('ne')}
-                  className={`p-4 rounded-xl border-2 transition-all ${
+                  className={`rounded-xl border-2 p-4 transition-all ${
                     language === 'ne'
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-200 hover:border-green-300'
+                      ? 'border-emerald-700 bg-emerald-50'
+                      : 'border-slate-200 hover:border-emerald-300'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">🇳🇵</span>
                     <div className="text-left">
-                      <div className="font-medium text-gray-900">नेपाली</div>
-                      <div className="text-sm text-gray-500">Nepali</div>
+                      <div className="font-medium text-slate-900">{t('nepali')}</div>
                     </div>
                   </div>
                 </button>
               </div>
-              <p className="text-sm text-gray-500">
-                {language === 'ne' 
-                  ? 'अन्तरफेस नेपालीमा देखाइनेछ' 
-                  : 'Interface will be displayed in English'}
-              </p>
+              <p className="text-sm text-slate-500">{t('interface_language_hint')}</p>
             </div>
           </div>
         );
@@ -763,24 +749,22 @@ const Settings = () => {
       case 'account':
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900">
-              {t('account_access') || 'Account access'}
-            </h3>
-            <p className="text-sm leading-6 text-gray-600">
-              {t(`${user?.role || 'user'}_account_access`) || t('user_account_access')}
+            <h3 className="text-lg font-semibold text-slate-900">{t('account_access')}</h3>
+            <p className="text-sm leading-6 text-slate-600">
+              {t(`${user?.role || 'user'}_account_access`)}
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
                 to="/profile"
                 className="inline-flex items-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                {t('manage_profile') || 'Manage profile'}
+                  {t('manage_profile')}
               </Link>
               <Link
                 to="/change-password"
                 className="inline-flex items-center rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-900"
               >
-                {t('change_password') || 'Change password'}
+                  {t('change_password')}
               </Link>
             </div>
           </div>
@@ -789,18 +773,20 @@ const Settings = () => {
       case 'about':
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900">
-              {t('about') || 'About'}
-            </h3>
-            <div className="bg-gray-50 rounded-xl p-6 text-center">
-              <div className="w-20 h-20 mx-auto bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center text-white text-3xl font-bold mb-4">
-                KB
+              <h3 className="text-lg font-semibold text-slate-900">{t('about')}</h3>
+              <div className="rounded-xl bg-slate-50 p-6 text-center">
+                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-800 text-3xl font-bold text-white">
+                  KB
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">{t('app_name')}</h2>
+                <p className="text-slate-600">{t('app_description')}</p>
+                <p className="mt-2 text-sm text-slate-500">
+                  {t('version', { version: versionQuery.data || '1.0.0' })}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {t('copyright_line', { year: new Date().getFullYear() })}
+                </p>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">Katuwal Bansha</h2>
-              <p className="text-gray-600">{t('app_description') || 'Family Tree Management System'}</p>
-              <p className="text-sm text-gray-500 mt-2">Version {versionQuery.data || '1.0.0'}</p>
-              <p className="text-sm text-gray-500">© 2026 NDS Software</p>
-            </div>
           </div>
         );
 
@@ -813,7 +799,7 @@ const Settings = () => {
     <div className="flex min-h-[calc(100vh-80px)] flex-col bg-gray-50 md:flex-row">
       <nav className="w-full flex-shrink-0 overflow-y-auto border-b border-gray-200 bg-white md:w-64 md:border-b-0 md:border-r">
         <div className="p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">⚙️ {t('settings') || 'Settings'}</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t('settings')}</h2>
         </div>
         <div className="p-2">
           {navItems.map((item) => {
@@ -823,7 +809,7 @@ const Settings = () => {
                 key={item.id}
                 onClick={() => {
                   if (hasUnsavedChanges) {
-                    if (!confirm(t('unsaved_changes') || 'You have unsaved changes. Are you sure?')) {
+                    if (!window.confirm(t('unsaved_changes'))) {
                       return;
                     }
                   }
@@ -853,7 +839,7 @@ const Settings = () => {
               {navItems.find(item => item.id === activeSection)?.label}
             </h1>
             <p className="text-gray-600 mt-1">
-              {t('manage_settings') || 'Manage'} {navItems.find(item => item.id === activeSection)?.label?.toLowerCase()} {t('settings') || 'settings'}
+              {t('settings_header_hint', { name: navItems.find(item => item.id === activeSection)?.label?.toLowerCase() })}
             </p>
           </div>
 
@@ -869,7 +855,7 @@ const Settings = () => {
                 onClick={handleSave}
                 disabled={isLoading || !hasUnsavedChanges}
               >
-                {isLoading ? (t('saving') || 'Saving...') : (t('save_changes') || 'Save Changes')}
+                {isLoading ? t('saving') : t('save_changes')}
               </Button>
             </div>
           </div>

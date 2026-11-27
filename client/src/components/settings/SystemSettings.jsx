@@ -5,8 +5,10 @@ import { useMutation } from '@tanstack/react-query';
 import { updateSystemSettings } from '../../api/settings';
 import toast from 'react-hot-toast';
 import { getAppVersion } from '../../api/system';
+import { useLanguage } from '../../context/LanguageContext';
 
 const SystemSettings = ({ data, onDataChange }) => {
+  const { t } = useLanguage();
   const [settings, setSettings] = useState({
     language: 'en',
     timeZone: 'Asia/Kathmandu',
@@ -20,7 +22,7 @@ const SystemSettings = ({ data, onDataChange }) => {
   const updateMutation = useMutation({
     mutationFn: updateSystemSettings,
     onSuccess: () => {
-      toast.success('System settings updated');
+      toast.success(t('set_system_updated'));
       onDataChange();
     },
   });
@@ -45,9 +47,9 @@ const SystemSettings = ({ data, onDataChange }) => {
   };
 
   const languages = [
-    { code: 'en', label: 'English' },
-    { code: 'ne', label: 'Nepali' },
-    { code: 'hi', label: 'Hindi' },
+    { code: 'en', label: t('english') },
+    { code: 'ne', label: t('nepali') },
+    { code: 'hi', label: t('sys_hindi') },
   ];
 
   const timeZones = [
@@ -67,25 +69,25 @@ const SystemSettings = ({ data, onDataChange }) => {
   ];
 
   const timeFormats = [
-    { value: '12', label: '12-hour (AM/PM)' },
-    { value: '24', label: '24-hour' },
+    { value: '12', label: t('sys_time_12') },
+    { value: '24', label: t('sys_time_24') },
   ];
 
   const currencies = [
-    { code: 'NPR', label: 'Nepalese Rupee (NPR)' },
-    { code: 'USD', label: 'US Dollar (USD)' },
-    { code: 'EUR', label: 'Euro (EUR)' },
-    { code: 'GBP', label: 'British Pound (GBP)' },
-    { code: 'INR', label: 'Indian Rupee (INR)' },
+    { code: 'NPR', label: t('sys_npr') },
+    { code: 'USD', label: t('sys_usd') },
+    { code: 'EUR', label: t('sys_eur') },
+    { code: 'GBP', label: t('sys_gbp') },
+    { code: 'INR', label: t('sys_inr') },
   ];
 
   const countries = [
-    'Nepal',
-    'India',
-    'China',
-    'United States',
-    'United Kingdom',
-    'Australia',
+    { value: 'Nepal', labelKey: 'sys_country_nepal' },
+    { value: 'India', labelKey: 'sys_country_india' },
+    { value: 'China', labelKey: 'sys_country_china' },
+    { value: 'United States', labelKey: 'sys_country_us' },
+    { value: 'United Kingdom', labelKey: 'sys_country_uk' },
+    { value: 'Australia', labelKey: 'sys_country_australia' },
   ];
 
   return (
@@ -93,7 +95,7 @@ const SystemSettings = ({ data, onDataChange }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Language
+            {t('sys_language')}
           </label>
           <select
             name="language"
@@ -111,7 +113,7 @@ const SystemSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Time Zone
+            {t('sys_time_zone')}
           </label>
           <select
             name="timeZone"
@@ -129,7 +131,7 @@ const SystemSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Date Format
+            {t('sys_date_format')}
           </label>
           <select
             name="dateFormat"
@@ -147,7 +149,7 @@ const SystemSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Time Format
+            {t('sys_time_format')}
           </label>
           <select
             name="timeFormat"
@@ -165,7 +167,7 @@ const SystemSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Currency
+            {t('sys_currency')}
           </label>
           <select
             name="currency"
@@ -183,7 +185,7 @@ const SystemSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Country
+            {t('sys_country')}
           </label>
           <select
             name="country"
@@ -192,8 +194,8 @@ const SystemSettings = ({ data, onDataChange }) => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {countries.map((country) => (
-              <option key={country} value={country}>
-                {country}
+              <option key={country.value} value={country.value}>
+                {t(country.labelKey)}
               </option>
             ))}
           </select>
@@ -203,8 +205,8 @@ const SystemSettings = ({ data, onDataChange }) => {
       <div className="border-t border-gray-200 pt-6">
         <div className="flex items-center justify-between">
           <div>
-            <h4 className="font-medium text-gray-900">Application Version</h4>
-            <p className="text-sm text-gray-600">Current version of the application</p>
+            <h4 className="font-medium text-gray-900">{t('sys_app_version')}</h4>
+            <p className="text-sm text-gray-600">{t('sys_app_version_hint')}</p>
           </div>
           <span className="px-3 py-1 bg-gray-100 rounded-lg font-mono text-sm">
             v{appVersion}
@@ -214,7 +216,7 @@ const SystemSettings = ({ data, onDataChange }) => {
 
       <div className="flex justify-end">
         <Button type="submit" disabled={updateMutation.isPending}>
-          {updateMutation.isPending ? 'Saving...' : 'Save System Settings'}
+          {updateMutation.isPending ? t('saving') : t('sys_save')}
         </Button>
       </div>
     </form>

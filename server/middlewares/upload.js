@@ -111,6 +111,21 @@ export const uploadUserPhoto = multer({
   fileFilter: imageOnlyFilter,
 });
 
+const chatImageStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'chat-images',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 1600, height: 1600, crop: 'limit', quality: 'auto' }],
+  },
+});
+
+export const uploadChatImage = multer({
+  storage: chatImageStorage,
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: imageOnlyFilter,
+});
+
 // Everything the member form can attach. The portrait is kept small; ID cards and
 // certificates keep enough detail for their text to stay readable.
 const memberFileStorage = new CloudinaryStorage({
@@ -141,6 +156,7 @@ export const uploadSingleDocument = uploadDocument.single('file');
 export const uploadSingleFamilyPhoto = uploadFamilyPhoto.single('familyPhoto');
 export const uploadSingleLogo = uploadLogo.single('logo');
 export const uploadSingleUserPhoto = uploadUserPhoto.single('photo');
+export const uploadSingleChatImage = uploadChatImage.single('file');
 
 // Multiple file uploads
 export const uploadMultiplePhotos = uploadPhoto.array('photos', 5);

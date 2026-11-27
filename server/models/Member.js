@@ -526,6 +526,7 @@ memberSchema.index({ citizenshipNumber: 1 });
 memberSchema.index({ personStatus: 1 });
 memberSchema.index({ family: 1, generation: 1 });
 memberSchema.index({ family: 1, isAlive: 1 });
+memberSchema.index({ createdBy: 1 });
 
 // ============================================================
 // VIRTUALS

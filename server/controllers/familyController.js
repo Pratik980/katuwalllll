@@ -30,10 +30,16 @@ const objectIds = (ids) => ids
   .filter((id) => /^[0-9a-fA-F]{24}$/.test(id))
   .map((id) => new mongoose.Types.ObjectId(id));
 
+const ownMemberMatch = (user) => {
+  if (user?.role !== 'user' || !user._id) return null;
+  const [ownerId] = objectIds([user._id]);
+  return ownerId ? { createdBy: ownerId } : null;
+};
+
 
 export const getFamilies = async (req, res) => {
   try {
-    const { page = 1, limit = 1000, search, house } = req.query; // Increased limit for dropdown
+    const { page = 1, limit = 1000, search, house, status } = req.query; // Increased limit for dropdown
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -43,6 +49,8 @@ export const getFamilies = async (req, res) => {
         $or: [
           { familyName: text },
           { familyNumber: text },
+          { familyHeadName: text },
+          { houseIdentifier: text },
           { clan: text },
           { vanshaGenerationNumber: text },
         ],
@@ -50,6 +58,9 @@ export const getFamilies = async (req, res) => {
     }
     if (house) {
       query.house = house;
+    }
+    if (status === 'open' || status === 'closed') {
+      query.status = status;
     }
 
     const ids = await authorizedFamilyIds(req.user);
@@ -68,9 +79,23 @@ export const getFamilies = async (req, res) => {
       Family.countDocuments(query),
     ]);
 
+    const ownMatch = ownMemberMatch(req.user);
     const counts = await Member.aggregate([
-      { $match: { family: { $in: families.map((family) => family._id) } } },
-      { $group: { _id: '$family', memberCount: { $sum: 1 }, generations: { $addToSet: '$generation' } } },
+      {
+        $match: {
+          ...(ownMatch || {}),
+          family: { $in: families.map((family) => family._id) },
+        },
+      },
+      {
+        $group: {
+          _id: '$family',
+          memberCount: { $sum: 1 },
+          maleCount: { $sum: { $cond: [{ $eq: ['$gender', 'male'] }, 1, 0] } },
+          femaleCount: { $sum: { $cond: [{ $eq: ['$gender', 'female'] }, 1, 0] } },
+          generations: { $addToSet: '$generation' },
+        },
+      },
     ]);
     const countsByFamily = new Map(counts.map((entry) => [String(entry._id), entry]));
 
@@ -87,6 +112,8 @@ export const getFamilies = async (req, res) => {
       return {
         ...familyObj,
         memberCount: entry?.memberCount || 0,
+        maleCount: entry?.maleCount || 0,
+        femaleCount: entry?.femaleCount || 0,
         generationCount: entry?.generations.length || 0,
       };
     });
@@ -127,7 +154,8 @@ export const getFamilyTreeByFamily = async (req, res) => {
       });
     }
 
-    const members = await Member.find({ family: familyId })
+    const ownMatch = ownMemberMatch(req.user);
+    const members = await Member.find({ family: familyId, ...(ownMatch || {}) })
       .populate({
         path: 'father',
         select: 'name photo memberNumber vanshaGenerationNumber generation gender isAlive',
@@ -161,17 +189,23 @@ export const getFamilyTreeByFamily = async (req, res) => {
       .flatMap((m) => [m.spouse, m.husband, m.wife, ...(m.wives || [])])
       .map((ref) => ref?._id || ref)
       .filter((id) => id && !inFamily.has(String(id)));
+    const authorizedIds = await authorizedFamilyIds(req.user);
+    const externalFilters = [
+      { family: { $ne: familyId } },
+      ...(authorizedIds === null ? [] : [{ family: { $in: objectIds(authorizedIds) } }]),
+      ...(ownMatch ? [ownMatch] : []),
+      {
+        $or: [
+          { _id: { $in: linkedIds } },
+          { spouse: { $in: familyIds } },
+          { husband: { $in: familyIds } },
+          { wife: { $in: familyIds } },
+          { wives: { $in: familyIds } },
+        ],
+      },
+    ];
 
-    const externalMembers = await Member.find({
-      family: { $ne: familyId },
-      $or: [
-        { _id: { $in: linkedIds } },
-        { spouse: { $in: familyIds } },
-        { husband: { $in: familyIds } },
-        { wife: { $in: familyIds } },
-        { wives: { $in: familyIds } },
-      ],
-    })
+    const externalMembers = await Member.find({ $and: externalFilters })
       .select(
         'name surname photo memberNumber vanshaGenerationNumber generation gender isAlive dob dobNepali dod relationship lineageRole personStatus maritalStatus family spouse husband wife wives'
       )
@@ -599,7 +633,7 @@ export const getNextVanshaNumber = async (req, res) => {
   try {
     const { familyId } = req.params;
 
-    const members = await Member.find({ family: familyId })
+    const members = await Member.find({ family: familyId, ...(ownMemberMatch(req.user) || {}) })
       .select('vanshaGenerationNumber')
       .lean();
 
@@ -630,12 +664,16 @@ export const getNextVanshaNumber = async (req, res) => {
 export const getFamilyStats = async (req, res) => {
   try {
     const ids = await authorizedFamilyIds(req.user);
+    const ownMatch = ownMemberMatch(req.user);
     const familyMatch = ids === null ? {} : { _id: { $in: objectIds(ids) } };
-    const memberMatch = ids === null ? {} : { family: { $in: objectIds(ids) } };
+    const memberFilters = [
+      ...(ids === null ? [] : [{ family: { $in: objectIds(ids) } }]),
+      ...(ownMatch ? [ownMatch] : []),
+    ];
     const [totalFamilies, memberStats] = await Promise.all([
       Family.countDocuments(familyMatch),
       Member.aggregate([
-        ...(Object.keys(memberMatch).length ? [{ $match: memberMatch }] : []),
+        ...(memberFilters.length ? [{ $match: { $and: memberFilters } }] : []),
         {
           $group: {
             _id: '$family',
@@ -681,7 +719,7 @@ export const getFamilyBanshaNumbers = async (req, res) => {
       });
     }
 
-    const members = await Member.find({ family: familyId })
+    const members = await Member.find({ family: familyId, ...(ownMemberMatch(req.user) || {}) })
       .select('vanshaGenerationNumber')
       .lean();
 

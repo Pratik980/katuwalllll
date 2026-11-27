@@ -2,11 +2,15 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { FaCalendar, FaTimes } from 'react-icons/fa';
 import { adToBs, bsToAd, NEPALI_MONTHS, getDaysInNepaliMonth, parseDateString, isApproximateBsYear, BS_YEAR_RANGE } from '../utils/nepaliDateConverter';
+import { useLanguage } from '../context/LanguageContext';
 
 const pad = (number) => String(number).padStart(2, '0');
 const formatParts = ({ year, month, day }) => `${year}-${pad(month)}-${pad(day)}`;
 const formatAd = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const looksComplete = (text) => /^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test((text || '').trim());
+const ENGLISH_MONTHS = ['Baisakh', 'Jestha', 'Ashadh', 'Shrawan', 'Bhadra', 'Ashwin', 'Kartik', 'Mangsir', 'Poush', 'Magh', 'Falgun', 'Chaitra'];
+const ENGLISH_WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const NEPALI_WEEKDAYS = ['आ', 'सो', 'मं', 'बु', 'बि', 'शु', 'श'];
 
 // The value this field holds is always a BS date (YYYY-MM-DD).
 // Type it, pick it from the calendar, or switch to AD to enter an English date.
@@ -21,6 +25,7 @@ const NepaliDatePickerComponent = ({
   disabled = false,
   placeholder = 'YYYY-MM-DD (BS)',
 }) => {
+  const { t, language } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value || '');
   const [calendar, setCalendar] = useState('BS');
@@ -179,18 +184,18 @@ const NepaliDatePickerComponent = ({
     if (calendar === 'AD') {
       const parsed = parseDateString(text, 'AD');
       if (parsed) return { text: `= BS ${adToBs(new Date(parsed.year, parsed.month - 1, parsed.day)).formatted}` };
-      return looksComplete(text) ? { text: 'यो अंग्रेजी मिति मिलेन', invalid: true } : null;
+      return looksComplete(text) ? { text: t('np_invalid_ad'), invalid: true } : null;
     }
 
     const parsed = parseDateString(text);
     if (parsed) {
       const approximate = isApproximateBsYear(parsed.year);
-      return { text: `= AD ${formatAd(bsToAd(parsed.year, parsed.month, parsed.day))}${approximate ? ' (अनुमानित)' : ''}` };
+      return { text: `= AD ${formatAd(bsToAd(parsed.year, parsed.month, parsed.day))}${approximate ? t('np_approximate') : ''}` };
     }
     if (text === value) return null; // an older record's date, shown as stored
     return looksComplete(text)
-      ? { text: 'यो मिति नेपाली पात्रोमा छैन', invalid: true }
-      : { text: 'मिति YYYY-MM-DD ढाँचामा लेख्नुहोस्', invalid: !isOpen };
+      ? { text: t('np_invalid_bs'), invalid: true }
+      : { text: t('np_format_hint'), invalid: !isOpen };
   })();
 
   const renderCalendar = () => {
@@ -220,11 +225,11 @@ const NepaliDatePickerComponent = ({
       <div className="p-3">
         <div className="flex items-center justify-between gap-1 mb-3">
           <div className="flex">
-            <button type="button" onClick={() => moveView(-12)} title="अघिल्लो साल" className="p-1 hover:bg-gray-100 rounded-full text-xs">&laquo;</button>
-            <button type="button" onClick={() => moveView(-1)} title="अघिल्लो महिना" className="p-1 hover:bg-gray-100 rounded-full text-xs">&lt;</button>
+            <button type="button" onClick={() => moveView(-12)} title={t('np_previous_year')} className="p-1 hover:bg-gray-100 rounded-full text-xs">&laquo;</button>
+            <button type="button" onClick={() => moveView(-1)} title={t('np_previous_month')} className="p-1 hover:bg-gray-100 rounded-full text-xs">&lt;</button>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-semibold">{NEPALI_MONTHS[viewMonth - 1]}</span>
+            <span className="text-sm font-semibold">{language === 'ne' ? NEPALI_MONTHS[viewMonth - 1] : ENGLISH_MONTHS[viewMonth - 1]}</span>
             <input
               type="number"
               value={yearText ?? viewYear}
@@ -232,7 +237,7 @@ const NepaliDatePickerComponent = ({
               onBlur={() => setYearText(null)}
               min={BS_YEAR_RANGE.min}
               max={BS_YEAR_RANGE.max}
-              title="साल"
+              title={t('np_year')}
               onChange={(e) => {
                 setYearText(e.target.value);
                 const year = parseInt(e.target.value, 10);
@@ -242,12 +247,12 @@ const NepaliDatePickerComponent = ({
             />
           </div>
           <div className="flex">
-            <button type="button" onClick={() => moveView(1)} title="अर्को महिना" className="p-1 hover:bg-gray-100 rounded-full text-xs">&gt;</button>
-            <button type="button" onClick={() => moveView(12)} title="अर्को साल" className="p-1 hover:bg-gray-100 rounded-full text-xs">&raquo;</button>
+            <button type="button" onClick={() => moveView(1)} title={t('np_next_month')} className="p-1 hover:bg-gray-100 rounded-full text-xs">&gt;</button>
+            <button type="button" onClick={() => moveView(12)} title={t('np_next_year')} className="p-1 hover:bg-gray-100 rounded-full text-xs">&raquo;</button>
           </div>
         </div>
         <div className="grid grid-cols-7 gap-1 text-center">
-          {['आ', 'सो', 'मं', 'बु', 'बि', 'शु', 'श'].map(day => (
+          {(language === 'ne' ? NEPALI_WEEKDAYS : ENGLISH_WEEKDAYS).map(day => (
             <div key={day} className="text-[10px] text-gray-400 font-medium">{day}</div>
           ))}
           {days}
@@ -286,7 +291,7 @@ const NepaliDatePickerComponent = ({
             onMouseDown={(e) => e.preventDefault()}
             onClick={toggleCalendar}
             disabled={disabled}
-            title={calendar === 'BS' ? 'अंग्रेजी (AD) मिति टाइप गर्न थिच्नुहोस्' : 'नेपाली (BS) मितिमा फर्कनुहोस्'}
+            title={calendar === 'BS' ? t('np_switch_to_ad') : t('np_switch_to_bs')}
             className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${calendar === 'AD' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
           >
             {calendar}

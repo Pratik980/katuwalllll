@@ -4,8 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { getMemberById } from '../../api/members';
 import Modal from '../Modal';
 import MemberProfile from '../MemberProfile';
+import { useLanguage } from '../../context/LanguageContext';
 
 const MemberProfileModal = ({ memberId, onClose }) => {
+  const { t } = useLanguage();
   const { data: member, isLoading } = useQuery({
     queryKey: ['member', memberId],
     queryFn: () => getMemberById(memberId),
@@ -13,7 +15,7 @@ const MemberProfileModal = ({ memberId, onClose }) => {
   });
 
   return (
-    <Modal isOpen={!!memberId} onClose={onClose} title="Member Profile" size="xl">
+    <Modal isOpen={!!memberId} onClose={onClose} title={t('member_profile')} size="xl">
       {isLoading ? (
         <div className="flex items-center justify-center h-40">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>

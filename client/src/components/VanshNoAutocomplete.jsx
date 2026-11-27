@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FaSearch, FaChevronDown, FaPlus, FaTimes } from 'react-icons/fa';
 import { getFamilyBanshaNumbers } from '../api/families';
+import { useLanguage } from '../context/LanguageContext';
 
 const VanshNoAutocomplete = ({
   label,
@@ -10,9 +11,11 @@ const VanshNoAutocomplete = ({
   required = false,
   className = '',
   error,
-  placeholder = 'खोज्नुहोस् वा नयाँ वंश नं. प्रविष्ट गर्नुहोस्',
+  placeholder,
   familyId, 
 }) => {
+  const { t } = useLanguage();
+  const resolvedPlaceholder = placeholder || t('vansh_search_help');
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [existingVanshNos, setExistingVanshNos] = useState([]);
@@ -140,7 +143,7 @@ const VanshNoAutocomplete = ({
           onChange={handleInputChange}
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           className={`
             w-full px-3 py-2.5 rounded-lg border-2 transition-all duration-200
             pl-9 pr-10
@@ -171,11 +174,11 @@ const VanshNoAutocomplete = ({
           <div className="p-2 border-b border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500">
-                {loading ? 'Loading...' : `${existingVanshNos.length} वंश नं.`}
+                {loading ? t('vansh_loading') : `${existingVanshNos.length} ${t('col_vansha')}`}
               </span>
               {!familyId && (
                 <span className="text-xs text-amber-500">
-                  ⚠️ पहिले परिवार चयन गर्नुहोस्
+                  ⚠️ {t('vansh_select_family_warning')}
                 </span>
               )}
               {displayValue && !valueExists && familyId && (
@@ -192,7 +195,7 @@ const VanshNoAutocomplete = ({
                   className="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
                 >
                   <FaPlus className="h-2.5 w-2.5" />
-                  प्रयोग गर्नुहोस् "{displayValue}"
+                  {t('vansh_use_value', { value: displayValue })}
                 </button>
               )}
             </div>
@@ -201,11 +204,11 @@ const VanshNoAutocomplete = ({
           <div className="overflow-y-auto max-h-48">
             {loading ? (
               <div className="px-3 py-2 text-sm text-gray-500 text-center">
-                Loading...
+                {t('vansh_loading')}
               </div>
             ) : !familyId ? (
               <div className="px-3 py-3 text-center">
-                <p className="text-sm text-gray-500">कृपया पहिले परिवार चयन गर्नुहोस्</p>
+                <p className="text-sm text-gray-500">{t('vansh_select_family_first')}</p>
               </div>
             ) : filteredOptions.length > 0 ? (
               filteredOptions.map((vansh) => (
@@ -219,13 +222,13 @@ const VanshNoAutocomplete = ({
                 >
                   <span>{vansh}</span>
                   {displayValue === vansh && (
-                    <span className="text-xs text-green-600">✓ चयन गरियो</span>
+                    <span className="text-xs text-green-600">{t('vansh_selected')}</span>
                   )}
                 </div>
               ))
             ) : searchTerm.trim() ? (
               <div className="px-3 py-3 text-center">
-                <p className="text-sm text-gray-500">कुनै अवस्थित वंश नं. फेला परेन।</p>
+                <p className="text-sm text-gray-500">{t('vansh_no_existing')}</p>
                 <button
                   onClick={() => {
                     const trimmed = searchTerm.trim();
@@ -239,12 +242,12 @@ const VanshNoAutocomplete = ({
                   className="mt-1 text-sm text-green-600 hover:text-green-700 font-medium flex items-center justify-center gap-1"
                 >
                   <FaPlus className="h-3 w-3" />
-                  नयाँ वंश नं. प्रयोग गर्नुहोस् "{searchTerm.trim()}"
+                  {t('vansh_use_new', { value: searchTerm.trim() })}
                 </button>
               </div>
             ) : (
               <div className="px-3 py-2 text-sm text-gray-500 text-center">
-                खोज्नुहोस् वा नयाँ वंश नं. प्रविष्ट गर्नुहोस्
+                {t('vansh_search_help')}
               </div>
             )}
           </div>
@@ -252,7 +255,7 @@ const VanshNoAutocomplete = ({
           {displayValue && valueExists && familyId && (
             <div className="p-2 border-t border-gray-100 bg-gray-50">
               <span className="text-xs text-green-600">
-                ✓ "{displayValue}" यस परिवारमा अवस्थित छ
+                {t('vansh_exists', { value: displayValue })}
               </span>
             </div>
           )}
@@ -263,7 +266,7 @@ const VanshNoAutocomplete = ({
       
       {displayValue && !valueExists && displayValue.trim() && familyId && (
         <p className="mt-0.5 text-xs text-amber-500">
-          ⚠️ "{displayValue}" यस परिवारमा अहिलेसम्म अवस्थित छैन। नयाँ वंश नं. को रूपमा थपिनेछ।
+          {t('vansh_new_warning', { value: displayValue })}
         </p>
       )}
     </div>

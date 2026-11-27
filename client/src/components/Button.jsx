@@ -1,21 +1,23 @@
-const Button = ({ 
-  children, 
-  variant = 'primary', 
-  size = 'md', 
-  className = '', 
+const Button = ({
+  children,
+  variant = 'primary',
+  size = 'md',
+  className = '',
   disabled = false,
   type = 'button',
   onClick,
-  ...props 
+  ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2';
-  
+  const baseStyles = 'inline-flex cursor-pointer items-center justify-center rounded-xl font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2';
+
   const variants = {
-    primary: 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-200 focus:ring-green-500',
-    secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-400',
-    outline: 'border-2 border-green-500 text-green-600 hover:bg-green-50 focus:ring-green-500',
-    danger: 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-200 focus:ring-red-500',
-    success: 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-200 focus:ring-emerald-500',
+    primary: 'bg-emerald-800 text-white shadow-sm hover:bg-emerald-900 focus:ring-emerald-700',
+    secondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-400',
+    outline: 'border border-emerald-700 text-emerald-800 hover:bg-emerald-50 focus:ring-emerald-700',
+    danger: 'bg-red-700 text-white hover:bg-red-800 focus:ring-red-700',
+    success: 'bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-700',
+    warning: 'bg-emerald-800 text-white hover:bg-emerald-900 focus:ring-emerald-700',
+    ghost: 'text-slate-700 hover:bg-slate-100 focus:ring-slate-300',
   };
 
   const sizes = {
@@ -29,7 +31,7 @@ const Button = ({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`${baseStyles} ${variants[variant] || variants.primary} ${sizes[size] || sizes.md} ${className}`}
       {...props}
     >
       {children}

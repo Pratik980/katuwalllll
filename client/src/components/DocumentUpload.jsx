@@ -1,12 +1,13 @@
-// src/components/DocumentUpload.jsx
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { uploadDocument } from '../api/documents';
 import { getMembers } from '../api/members';
+import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
 import toast from 'react-hot-toast';
 
 const DocumentUpload = ({ onSuccess, onCancel }) => {
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     memberId: '',
     documentType: '',
@@ -44,18 +45,18 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const droppedFile = e.dataTransfer.files[0];
       if (droppedFile.size > 15 * 1024 * 1024) {
-        toast.error('File size must be less than 15MB');
+        toast.error(t('file_too_large_15'));
         return;
       }
       setFile(droppedFile);
     }
-  }, []);
+  }, [t]);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
       if (selectedFile.size > 15 * 1024 * 1024) {
-        toast.error('File size must be less than 15MB');
+        toast.error(t('file_too_large_15'));
         return;
       }
       setFile(selectedFile);
@@ -66,22 +67,22 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
     e.preventDefault();
     
     if (!file) {
-      toast.error('Please select a file');
+      toast.error(t('select_a_file'));
       return;
     }
 
     if (!formData.memberId) {
-      toast.error('Please select a member');
+      toast.error(t('select_member_required'));
       return;
     }
 
     if (!formData.documentType) {
-      toast.error('Please select document type');
+      toast.error(t('select_document_type'));
       return;
     }
 
     if (!formData.title) {
-      toast.error('Please enter a title');
+      toast.error(t('enter_title'));
       return;
     }
 
@@ -97,10 +98,10 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
       submitData.append('file', file);
 
       await uploadDocument(submitData);
-      toast.success('Document uploaded successfully');
+      toast.success(t('document_uploaded'));
       onSuccess?.();
     } catch (error) {
-      toast.error(error.message || 'Failed to upload document');
+      toast.error(error.message || t('document_upload_failed'));
     } finally {
       setLoading(false);
     }
@@ -110,7 +111,7 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Member *
+          {t('member')} *
         </label>
         <select
           name="memberId"
@@ -119,7 +120,7 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
           required
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
         >
-          <option value="">Select Member</option>
+          <option value="">{t('select_member_required')}</option>
           {membersData?.data?.map((member) => (
             <option key={member._id} value={member._id}>
               {member.name} ({member.familyNumber})
@@ -130,7 +131,7 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Document Type *
+          {t('document_type_label')} *
         </label>
         <select
           name="documentType"
@@ -139,21 +140,21 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
           required
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
         >
-          <option value="">Select Type</option>
-          <option value="citizenship">Citizenship</option>
-          <option value="birth_certificate">Birth Certificate</option>
-          <option value="marriage_certificate">Marriage Certificate</option>
-          <option value="death_certificate">Death Certificate</option>
-          <option value="educational_certificate">Educational Certificate</option>
-          <option value="passport">Passport</option>
-          <option value="photo_album">Photo Album</option>
-          <option value="other">Other</option>
+          <option value="">{t('select_type')}</option>
+          <option value="citizenship">{t('citizenship')}</option>
+          <option value="birth_certificate">{t('birth_certificate')}</option>
+          <option value="marriage_certificate">{t('marriage_certificate')}</option>
+          <option value="death_certificate">{t('death_certificate')}</option>
+          <option value="educational_certificate">{t('educational_certificate')}</option>
+          <option value="passport">{t('passport')}</option>
+          <option value="photo_album">{t('photo_album')}</option>
+          <option value="other">{t('other')}</option>
         </select>
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Title *
+          {t('document_title')} *
         </label>
         <input
           type="text"
@@ -167,7 +168,7 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Description
+          {t('description')}
         </label>
         <textarea
           name="description"
@@ -180,7 +181,7 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          File *
+          {t('file_label')} *
         </label>
         <div
           className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
@@ -213,28 +214,26 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
                 strokeLinejoin="round"
               />
             </svg>
-            <div className="text-sm text-gray-600">
-              <span className="font-medium text-primary">Click to upload</span>
-              {' '}or drag and drop
+            <div className="text-sm text-slate-600">
+              <span className="font-medium text-emerald-800">{t('click_to_upload')}</span>
+              {' '}{t('or_drag_drop')}
             </div>
-            <p className="text-xs text-gray-500">
-              PDF, DOC, DOCX, JPG, PNG, GIF, WEBP up to 15MB
-            </p>
+            <p className="text-xs text-slate-500">{t('file_formats_hint')}</p>
           </div>
         </div>
         {file && (
-          <p className="mt-2 text-sm text-gray-600">
-            Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+          <p className="mt-2 text-sm text-slate-600">
+            {t('selected_file', { name: file.name, size: (file.size / 1024 / 1024).toFixed(2) })}
           </p>
         )}
       </div>
 
       <div className="flex justify-end space-x-3 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
+          {t('cancel')}
         </Button>
         <Button type="submit" disabled={loading}>
-          {loading ? 'Uploading...' : 'Upload Document'}
+          {loading ? t('uploading') : t('upload_document')}
         </Button>
       </div>
     </form>

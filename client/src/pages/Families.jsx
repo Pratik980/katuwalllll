@@ -1,6 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFamilies, closeFamily, reopenFamily, createFamily, updateFamily, deleteFamily } from '../api/families';
+import {
+  getFamilies,
+  closeFamily,
+  reopenFamily,
+  createFamily,
+  updateFamily,
+  deleteFamily,
+} from '../api/families';
 import { getMembersByFamily } from '../api/members';
 import Modal from '../components/Modal';
 import FamilyTreeView from '../components/FamilyTreeView';
@@ -8,16 +15,31 @@ import MemberProfileModal from '../components/tree/MemberProfileModal';
 import Button from '../components/Button';
 import FloatingInput from '../components/FloatingInput';
 import SearchableSelect from '../components/SearchableSelect';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { FaHome, FaPlus, FaUser, FaTimes, FaSave, FaTree, FaBuilding, FaPhone, FaUsers, FaInfoCircle } from 'react-icons/fa';
+import {
+  BuildingOfficeIcon,
+  CheckIcon,
+  HomeIcon,
+  InformationCircleIcon,
+  LockClosedIcon,
+  LockOpenIcon,
+  MagnifyingGlassIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  UserGroupIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const Families = () => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const canManage = user?.role !== 'user';
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [selectedFamily, setSelectedFamily] = useState(null);
   const [isTreeModalOpen, setIsTreeModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -45,41 +67,50 @@ const Families = () => {
   const [formErrors, setFormErrors] = useState({});
 
   const { data, isLoading } = useQuery({
-    queryKey: ['families', page, search],
-    queryFn: () => getFamilies({ page, limit: 10, search }),
+    queryKey: ['families', page, search, statusFilter],
+    queryFn: () => getFamilies({ page, limit: 10, search, ...(statusFilter ? { status: statusFilter } : {}) }),
   });
 
-  // Members of the one family whose details or edit form is open
   const openFamilyId = (isDetailsModalOpen && selectedFamily?._id) || (isEditModalOpen && editingFamily?._id) || null;
   const { data: openFamilyMembers } = useQuery({
     queryKey: ['family-members', openFamilyId],
     queryFn: () => getMembersByFamily(openFamilyId),
     enabled: !!openFamilyId,
   });
-  const familyMembers = openFamilyMembers?.data || [];
+  const openFamilyMemberData = openFamilyMembers?.data;
+  const familyMembers = useMemo(() => openFamilyMemberData || [], [openFamilyMemberData]);
 
-  const getFamilyMemberCount = (familyId) =>
-    data?.data?.find(family => family._id === familyId)?.memberCount ?? 0;
+  const getFamilyCount = (family, key) => family?.[key] ?? 0;
   const getFamilyGenerations = (familyId) =>
-    data?.data?.find(family => family._id === familyId)?.generationCount ?? 0;
+    data?.data?.find((family) => family._id === familyId)?.generationCount ?? 0;
+  const getFamilyMemberCount = (familyId) =>
+    data?.data?.find((family) => family._id === familyId)?.memberCount ?? 0;
+  const getFamilyHeadName = (family) =>
+    family?.familyHead?.name || family?.familyHeadName || t('unknown');
+  const hasActiveFilters = Boolean(search.trim() || statusFilter);
 
-  // The head of a family is chosen from that family's own members
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setPage(1);
+  };
+
   const memberOptions = useMemo(() => {
     if (!isEditModalOpen) return [];
-    return familyMembers.map(m => ({
-      value: m._id,
-      label: `${m.name}${m.surname ? ` ${m.surname}` : ''} (${m.memberNumber || 'N/A'})`,
+    return familyMembers.map((member) => ({
+      value: member._id,
+      label: `${member.name}${member.surname ? ` ${member.surname}` : ''} (${member.memberNumber || t('unknown')})`,
     }));
-  }, [familyMembers, isEditModalOpen]);
+  }, [familyMembers, isEditModalOpen, t]);
 
   const closeMutation = useMutation({
     mutationFn: ({ id, reason }) => closeFamily(id, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['families'] });
       queryClient.invalidateQueries({ queryKey: ['members-for-families'] });
-      toast.success('परिवार सफलतापूर्वक बन्द गरियो');
+      toast.success(t('family_closed'));
     },
-    onError: (error) => toast.error(error.response?.data?.message || 'परिवार बन्द गर्न असफल'),
+    onError: (error) => toast.error(error.response?.data?.message || t('family_close_failed')),
   });
 
   const reopenMutation = useMutation({
@@ -87,36 +118,36 @@ const Families = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['families'] });
       queryClient.invalidateQueries({ queryKey: ['members-for-families'] });
-      toast.success('परिवार पुन: खोलियो');
+      toast.success(t('family_reopened'));
     },
-    onError: (error) => toast.error(error.response?.data?.message || 'परिवार पुन: खोल्न असफल'),
+    onError: (error) => toast.error(error.response?.data?.message || t('family_reopen_failed')),
   });
 
   const deleteFamilyMutation = useMutation({
     mutationFn: (id) => deleteFamily(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['families'] });
-      toast.success('परिवार मेटाइयो');
+      toast.success(t('family_deleted'));
     },
   });
 
   const createFamilyMutation = useMutation({
     mutationFn: createFamily,
     onSuccess: () => {
-      toast.success('परिवार सफलतापूर्वक थपियो 🎉');
+      toast.success(t('family_created'));
       queryClient.invalidateQueries({ queryKey: ['families'] });
       queryClient.invalidateQueries({ queryKey: ['members-for-families'] });
       setIsCreateModalOpen(false);
       setFamilyForm(initialFamilyForm);
       setFormErrors({});
     },
-    onError: (error) => toast.error(error.response?.data?.message || 'परिवार थप्न असफल'),
+    onError: (error) => toast.error(error.response?.data?.message || t('family_create_failed')),
   });
 
   const updateFamilyMutation = useMutation({
     mutationFn: ({ id, data }) => updateFamily(id, data),
     onSuccess: () => {
-      toast.success('परिवार सफलतापूर्वक अद्यावधिक गरियो');
+      toast.success(t('family_updated'));
       queryClient.invalidateQueries({ queryKey: ['families'] });
       queryClient.invalidateQueries({ queryKey: ['members-for-families'] });
       setIsEditModalOpen(false);
@@ -124,28 +155,39 @@ const Families = () => {
       setFamilyForm(initialFamilyForm);
       setFormErrors({});
     },
-    onError: (error) => toast.error(error.response?.data?.message || 'परिवार अद्यावधिक गर्न असफल'),
+    onError: (error) => toast.error(error.response?.data?.message || t('family_update_failed')),
   });
 
-  const handleViewTree = (family) => { setSelectedFamily(family); setIsTreeModalOpen(true); };
-  const handleViewDetails = (family) => { setSelectedFamily(family); setIsDetailsModalOpen(true); };
+  const handleViewTree = (family) => {
+    setSelectedFamily(family);
+    setIsTreeModalOpen(true);
+  };
+  const handleViewDetails = (family) => {
+    setSelectedFamily(family);
+    setIsDetailsModalOpen(true);
+  };
   const handleCloseFamily = (family) => {
-    const reason = window.prompt('परिवार बन्द गर्ने कारण लेख्नुहोस्:');
+    if (!window.confirm(t('confirm_close_family'))) return;
+    const reason = window.prompt(t('close_reason_prompt'));
     if (reason !== null) closeMutation.mutate({ id: family._id, reason });
   };
   const handleReopenFamily = (family) => {
-    if (window.confirm('के तपाईं यो परिवार पुन: खोल्न निश्चित हुनुहुन्छ?')) reopenMutation.mutate(family._id);
+    if (window.confirm(t('confirm_reopen_family'))) reopenMutation.mutate(family._id);
   };
   const handleDeleteFamily = (family) => {
     if (getFamilyMemberCount(family._id) > 0) {
-      toast.error('सदस्य भएको परिवार मेटाउन मिल्दैन। पहिले सदस्यहरू सार्नुहोस् वा मेटाउनुहोस्।');
+      toast.error(t('delete_family_blocked'));
       return;
     }
-    if (window.confirm(`"${family.familyName}" परिवार मेटाउने? यो फिर्ता हुँदैन।`)) {
+    if (window.confirm(t('confirm_delete_family', { name: family.familyName }))) {
       deleteFamilyMutation.mutate(family._id);
     }
   };
-  const handleAddFamily = () => { setFamilyForm(initialFamilyForm); setFormErrors({}); setIsCreateModalOpen(true); };
+  const handleAddFamily = () => {
+    setFamilyForm(initialFamilyForm);
+    setFormErrors({});
+    setIsCreateModalOpen(true);
+  };
   const handleEditFamily = (family) => {
     setEditingFamily(family);
     setFamilyForm({
@@ -165,31 +207,28 @@ const Families = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleFamilyFormChange = (e) => {
-    const { name, value } = e.target;
-    setFamilyForm(prev => ({ ...prev, [name]: value }));
-    if (formErrors[name]) setFormErrors(prev => ({ ...prev, [name]: '' }));
+  const handleFamilyFormChange = (event) => {
+    const { name, value } = event.target;
+    setFamilyForm((current) => ({ ...current, [name]: value }));
+    if (formErrors[name]) setFormErrors((current) => ({ ...current, [name]: '' }));
   };
 
   const handleFamilySelectChange = (name, value) => {
-    setFamilyForm(prev => ({ ...prev, [name]: value }));
-    if (formErrors[name]) setFormErrors(prev => ({ ...prev, [name]: '' }));
+    setFamilyForm((current) => ({ ...current, [name]: value }));
+    if (formErrors[name]) setFormErrors((current) => ({ ...current, [name]: '' }));
   };
 
   const validateFamilyForm = () => {
     const errors = {};
-    if (!familyForm.familyName?.trim()) errors.familyName = 'परिवारको नाम आवश्यक छ';
-    if (!familyForm.houseNumber?.trim()) errors.houseNumber = 'घर नम्बर आवश्यक छ';
+    if (!familyForm.familyName?.trim()) errors.familyName = t('family_name_required');
+    if (!familyForm.houseNumber?.trim()) errors.houseNumber = t('house_number_required');
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleFamilySubmit = async (e) => {
-    e.preventDefault();
-    if (!validateFamilyForm()) {
-      Object.values(formErrors).forEach(err => toast.error(err));
-      return;
-    }
+  const handleFamilySubmit = async (event) => {
+    event.preventDefault();
+    if (!validateFamilyForm()) return;
 
     const submitData = {
       familyName: familyForm.familyName.trim(),
@@ -212,49 +251,62 @@ const Families = () => {
   };
 
   const getRelationshipLabel = (relationship) => {
-    const labels = {
-      'member': 'सदस्य', 'spouse': 'श्रीमान/श्रीमती', 'child': 'सन्तान',
-      'parent': 'आमा/बुवा', 'sibling': 'दाजु/भाइ/दिदी/बहिनी',
-      'grandparent': 'हजुरबा/हजुरआमा', 'grandchild': 'नाति/नातिनी', 'other': 'अन्य'
-    };
-    return labels[relationship] || relationship || 'सदस्य';
+    if (!relationship) return t('relationship_member');
+    const key = `relationship_${relationship}`;
+    const label = t(key);
+    return label === key ? relationship : label;
+  };
+
+  const closeForm = () => {
+    setIsCreateModalOpen(false);
+    setIsEditModalOpen(false);
+    setEditingFamily(null);
+    setFamilyForm(initialFamilyForm);
+    setFormErrors({});
   };
 
   const renderFamilyForm = (isEdit = false) => (
     <form onSubmit={handleFamilySubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
-          <FloatingInput label="परिवारको नाम *" name="familyName" value={familyForm.familyName} onChange={handleFamilyFormChange} icon={FaHome} required error={formErrors.familyName} />
+          <FloatingInput label={`${t('family_name')} *`} name="familyName" value={familyForm.familyName} onChange={handleFamilyFormChange} icon={HomeIcon} required error={formErrors.familyName} />
         </div>
-        <FloatingInput label="घर नम्बर *" name="houseNumber" value={familyForm.houseNumber} onChange={handleFamilyFormChange} icon={FaBuilding} required error={formErrors.houseNumber} placeholder="जस्तै: 123" />
-        <FloatingInput label="घरको नाम" name="houseName" value={familyForm.houseName} onChange={handleFamilyFormChange} icon={FaBuilding} placeholder="जस्तै: मेन हाउस" />
-        <FloatingInput label="परिवार नम्बर" name="familyNumber" value={familyForm.familyNumber} onChange={handleFamilyFormChange} icon={FaTree} disabled placeholder="खाली छोड्नुहोस् - स्वत: जेनेरेट हुनेछ" />
-        <FloatingInput label="वंश / पुस्ता नम्बर" name="vanshaGenerationNumber" value={familyForm.vanshaGenerationNumber} onChange={handleFamilyFormChange} icon={FaTree} placeholder="खाली छोड्नुहोस् - स्वत: जेनेरेट हुनेछ" />
-        <SearchableSelect label="घरमुली" name="familyHead" value={familyForm.familyHead} onChange={handleFamilySelectChange} options={memberOptions} placeholder="घरमुली खोज्नुहोस्..." />
-        <FloatingInput label="कुल / गोत्र" name="clan" value={familyForm.clan} onChange={handleFamilyFormChange} icon={FaUsers} />
-        <FloatingInput label="मूल स्थान" name="origin" value={familyForm.origin} onChange={handleFamilyFormChange} icon={FaHome} />
-        <FloatingInput label="हालको ठेगाना" name="currentAddress" value={familyForm.currentAddress} onChange={handleFamilyFormChange} icon={FaHome} />
+        <FloatingInput label={`${t('house_number')} *`} name="houseNumber" value={familyForm.houseNumber} onChange={handleFamilyFormChange} icon={BuildingOfficeIcon} required error={formErrors.houseNumber} placeholder={t('house_number_placeholder')} />
+        <FloatingInput label={t('house_name')} name="houseName" value={familyForm.houseName} onChange={handleFamilyFormChange} icon={BuildingOfficeIcon} placeholder={t('house_name_placeholder')} />
+        <FloatingInput label={t('family_number')} name="familyNumber" value={familyForm.familyNumber} onChange={handleFamilyFormChange} icon={UserGroupIcon} disabled placeholder={t('auto_generated_hint')} />
+        <FloatingInput label={t('vansha_generation_number')} name="vanshaGenerationNumber" value={familyForm.vanshaGenerationNumber} onChange={handleFamilyFormChange} icon={UserGroupIcon} placeholder={t('auto_generated_hint')} />
+        <SearchableSelect label={t('family_head')} name="familyHead" value={familyForm.familyHead} onChange={handleFamilySelectChange} options={memberOptions} placeholder={t('search_family_head')} />
+        <FloatingInput label={t('clan')} name="clan" value={familyForm.clan} onChange={handleFamilyFormChange} icon={UserGroupIcon} />
+        <FloatingInput label={t('origin')} name="origin" value={familyForm.origin} onChange={handleFamilyFormChange} icon={HomeIcon} />
+        <FloatingInput label={t('current_address')} name="currentAddress" value={familyForm.currentAddress} onChange={handleFamilyFormChange} icon={HomeIcon} />
         <div className="md:col-span-2">
-          <FloatingInput label="विवरण" name="description" value={familyForm.description} onChange={handleFamilyFormChange} type="textarea" rows={2} icon={FaInfoCircle} />
+          <FloatingInput label={t('description')} name="description" value={familyForm.description} onChange={handleFamilyFormChange} type="textarea" rows={2} icon={InformationCircleIcon} />
         </div>
-        <SearchableSelect label="स्थिति" name="status" value={familyForm.status} onChange={handleFamilySelectChange} options={[{ value: 'open', label: 'खुला' }, { value: 'closed', label: 'बन्द' }]} />
+        <SearchableSelect
+          label={t('status')}
+          name="status"
+          value={familyForm.status}
+          onChange={handleFamilySelectChange}
+          options={[{ value: 'open', label: t('open') }, { value: 'closed', label: t('closed') }]}
+        />
       </div>
-      <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
-        <Button type="submit" variant="primary" disabled={createFamilyMutation.isLoading || updateFamilyMutation.isLoading} className="flex-1">
-          {(createFamilyMutation.isLoading || updateFamilyMutation.isLoading) ? (
+      <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row">
+        <Button type="submit" variant="primary" disabled={createFamilyMutation.isPending || updateFamilyMutation.isPending} className="flex-1">
+          {createFamilyMutation.isPending || updateFamilyMutation.isPending ? (
             <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-1.5 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              {isEdit ? 'अद्यावधिक गर्दै...' : 'थप्दै...'}
+              <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              {isEdit ? t('updating') : t('adding')}
             </span>
           ) : (
-            <><FaSave className="mr-1.5" />{isEdit ? 'परिवार अद्यावधिक गर्नुहोस्' : 'परिवार थप्नुहोस्'}</>
+            <span className="flex items-center gap-1.5">
+              <CheckIcon className="h-4 w-4" />
+              {isEdit ? t('update_family') : t('add_family')}
+            </span>
           )}
         </Button>
-        <Button type="button" variant="outline" onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); setEditingFamily(null); setFamilyForm(initialFamilyForm); setFormErrors({}); }}>
-          <FaTimes className="mr-1.5" /> रद्द गर्नुहोस्
+        <Button type="button" variant="outline" onClick={closeForm}>
+          <XMarkIcon className="mr-1.5 h-4 w-4" />
+          {t('cancel')}
         </Button>
       </div>
     </form>
@@ -262,141 +314,309 @@ const Families = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-emerald-700" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FaHome className="text-green-500" /> परिवारहरू</h1>
-          <p className="text-gray-600">सबै परिवार र तिनीहरूको विवरण व्यवस्थापन गर्नुहोस्</p>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+            <HomeIcon className="h-6 w-6 text-emerald-800" />
+            {t('families')}
+          </h1>
+          <p className="text-slate-600">{t('families_description')}</p>
         </div>
-        {canManage && <Button variant="primary" onClick={handleAddFamily} className="flex items-center"><FaPlus className="mr-2" /> परिवार थप्नुहोस्</Button>}
+        {canManage && (
+          <Button variant="primary" onClick={handleAddFamily} className="flex items-center">
+            <PlusIcon className="mr-2 h-4 w-4" />
+            {t('add_family')}
+          </Button>
+        )}
       </div>
 
-      <div className="relative max-w-md">
-        <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-        <input type="text" placeholder="परिवारको नाम, नम्बर, वंश/पुस्ता द्वारा खोज्नुहोस्..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-lg">
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder={t('search_families_placeholder')}
+            value={search}
+            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+            className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-4 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/15"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/15 sm:w-44"
+          aria-label={t('status')}
+        >
+          <option value="">{t('all_status')}</option>
+          <option value="open">{t('open')}</option>
+          <option value="closed">{t('closed')}</option>
+        </select>
+        {hasActiveFilters && (
+          <Button variant="secondary" size="sm" onClick={clearFilters}>
+            <XMarkIcon className="mr-1.5 h-4 w-4" />
+            {t('clear_filters')}
+          </Button>
+        )}
       </div>
 
       {data?.data?.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-          <FaHome className="text-4xl text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">कुनै परिवार फेला परेन</p>
-          <p className="text-sm text-gray-400">आफ्नो खोज समायोजन गर्नुहोस् वा नयाँ परिवार थप्नुहोस्</p>
+        <div className="rounded-xl border border-slate-200 bg-white py-12 text-center">
+          <HomeIcon className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+          <p className="font-medium text-slate-600">{t('no_families')}</p>
+          <p className="mt-1 text-sm text-slate-400">{t('no_families_hint')}</p>
+          {hasActiveFilters && (
+            <Button variant="secondary" size="sm" onClick={clearFilters} className="mt-4">
+              <XMarkIcon className="mr-1.5 h-4 w-4" />
+              {t('clear_filters')}
+            </Button>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {data?.data?.map((family) => {
-            const isClosed = family.status === 'closed';
-            return (
-              <div key={family._id} className={`bg-white rounded-2xl border ${isClosed ? 'border-gray-300' : 'border-green-200'} overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer`} onClick={() => handleViewDetails(family)}>
-                <div className="relative">
-                  <div className={`h-32 ${isClosed ? 'bg-gray-300' : 'bg-gradient-to-r from-green-400 to-emerald-500'} flex items-center justify-center`}>
-                    <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30">
-                      {family.familyPhoto ? <img src={family.familyPhoto} alt={family.familyName} className="w-full h-full object-cover rounded-full" /> : <FaHome className={`text-white text-3xl ${isClosed ? 'opacity-50' : ''}`} />}
-                    </div>
-                  </div>
-                  {family.familyPhoto && <div className="absolute -bottom-10 left-4 w-20 h-20 rounded-full border-4 border-white overflow-hidden shadow-lg"><img src={family.familyPhoto} alt={family.familyName} className="w-full h-full object-cover" /></div>}
-                </div>
-                <div className="pt-8 pb-4 px-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-bold text-lg text-gray-800 truncate">{family.familyName || 'Unnamed Family'}</h3>
-                      <p className="text-sm text-gray-500">
-                        घर नं. {family.house?.houseNumber || 'N/A'} • परिवार नं. {family.familyNumber} • <span className="font-medium text-green-600 ml-1">{family.houseIdentifier || 'N/A'}</span>
-                      </p>
-                      {family.vanshaGenerationNumber && <p className="text-xs text-gray-400 mt-0.5">वंश/पुस्ता: {family.vanshaGenerationNumber}</p>}
-                    </div>
-                    {isClosed && <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded-full text-xs font-medium">बन्द</span>}
-                  </div>
-                  <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
-                    <div className="flex items-center gap-1.5"><FaUsers className={`${isClosed ? 'text-gray-400' : 'text-blue-500'} text-sm`} /><span className={`text-sm font-medium ${isClosed ? 'text-gray-500' : 'text-gray-700'}`}>{getFamilyMemberCount(family._id)} सदस्यहरू</span></div>
-                    {family.clan && <div className="flex items-center gap-1.5"><span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{family.clan}</span></div>}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleViewTree(family); }} className="text-xs"><FaTree className="mr-1" /> वृक्ष</Button>
-                    {canManage && (
-                      <>
-                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleEditFamily(family); }} className="text-xs">सम्पादन</Button>
-                        {isClosed ? (
-                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleReopenFamily(family); }} className="text-xs text-green-600 border-green-300 hover:bg-green-50">पुन: खोल्नुहोस्</Button>
-                        ) : (
-                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleCloseFamily(family); }} className="text-xs text-red-600 border-red-300 hover:bg-red-50">बन्द गर्नुहोस्</Button>
+        <div className="dashboard-surface overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1080px] text-left text-sm">
+              <caption className="sr-only">{t('families_list')}</caption>
+              <thead>
+                <tr>
+                  {[
+                    t('family_name'),
+                    t('family_number'),
+                    t('family_head'),
+                    t('total_members'),
+                    t('male_members'),
+                    t('female_members'),
+                    t('generations'),
+                    t('house_number'),
+                    t('actions'),
+                  ].map((label, index) => (
+                    <th
+                      key={label}
+                      scope="col"
+                      className={`px-4 py-3 font-semibold ${index === 8 ? 'text-right' : ''}`}
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data?.data?.map((family) => {
+                  const isClosed = family.status === 'closed';
+                  return (
+                    <tr key={family._id} className={isClosed ? 'bg-slate-50/70' : ''}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg ${
+                            isClosed ? 'bg-slate-200 text-slate-600' : 'bg-emerald-50 text-emerald-800'
+                          }`}>
+                            {family.familyPhoto ? (
+                              <img src={family.familyPhoto} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <HomeIcon className="h-5 w-5" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => handleViewDetails(family)}
+                              className="block max-w-full truncate rounded font-semibold text-slate-900 hover:text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                              title={family.familyName}
+                            >
+                              {family.familyName || t('unnamed_family')}
+                            </button>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              {family.houseName && <span className="truncate">{family.houseName}</span>}
+                              <span className={`rounded-full px-2 py-0.5 font-medium ${
+                                isClosed ? 'bg-slate-200 text-slate-600' : 'bg-emerald-50 text-emerald-800'
+                              }`}>
+                                {isClosed ? t('closed') : t('open')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-700">{family.familyNumber || '—'}</td>
+                      <td className="px-4 py-3 text-slate-700">{getFamilyHeadName(family)}</td>
+                      <td className="px-4 py-3 font-medium text-slate-900">{getFamilyCount(family, 'memberCount')}</td>
+                      <td className="px-4 py-3 text-slate-700">{getFamilyCount(family, 'maleCount')}</td>
+                      <td className="px-4 py-3 text-slate-700">{getFamilyCount(family, 'femaleCount')}</td>
+                      <td className="px-4 py-3 text-slate-700">{getFamilyGenerations(family._id)}</td>
+                      <td className="px-4 py-3 text-slate-700">
+                        <span className="block whitespace-nowrap">{family.house?.houseNumber || family.houseNumber || '—'}</span>
+                        {family.houseIdentifier && (
+                          <span className="block truncate text-xs text-slate-500" title={family.houseIdentifier}>
+                            {family.houseIdentifier}
+                          </span>
                         )}
-                        {getFamilyMemberCount(family._id) === 0 && (
-                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleDeleteFamily(family); }} className="text-xs text-red-600 border-red-300 hover:bg-red-50">मेटाउनुहोस्</Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button size="sm" variant="secondary" onClick={() => handleViewTree(family)} title={t('view_family_tree')} aria-label={t('view_family_tree')}>
+                            <UserGroupIcon className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => handleViewDetails(family)} title={t('view_details')} aria-label={t('view_details')}>
+                            <InformationCircleIcon className="h-4 w-4" />
+                          </Button>
+                          {canManage && (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => handleEditFamily(family)} title={t('edit')} aria-label={t('edit')}>
+                                <PencilIcon className="h-4 w-4" />
+                              </Button>
+                              {isClosed ? (
+                                <Button size="sm" variant="outline" onClick={() => handleReopenFamily(family)} title={t('reopen_family')} aria-label={t('reopen_family')}>
+                                  <LockOpenIcon className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => handleCloseFamily(family)} title={t('close_family')} aria-label={t('close_family')}>
+                                  <LockClosedIcon className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {getFamilyCount(family, 'memberCount') === 0 && (
+                                <Button size="sm" variant="outline" onClick={() => handleDeleteFamily(family)} title={t('delete_family')} aria-label={t('delete_family')}>
+                                  <TrashIcon className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {data?.pagination && data.pagination.pages > 1 && (
-        <div className="flex justify-center gap-2 mt-4">
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>पछिल्लो</Button>
-          <span className="flex items-center px-3 text-sm text-gray-600">{page} / {data.pagination.pages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(data.pagination.pages, p + 1))} disabled={page === data.pagination.pages}>अर्को</Button>
+        <div className="mt-4 flex justify-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
+            {t('previous')}
+          </Button>
+          <span className="flex items-center px-3 text-sm text-slate-600">
+            {t('page_x_of_y', { current: page, total: data.pagination.pages })}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setPage((current) => Math.min(data.pagination.pages, current + 1))} disabled={page === data.pagination.pages}>
+            {t('next')}
+          </Button>
         </div>
       )}
 
       {canManage && (
         <>
-          <Modal isOpen={isCreateModalOpen} onClose={() => { setIsCreateModalOpen(false); setFamilyForm(initialFamilyForm); setFormErrors({}); }} title="नयाँ परिवार थप्नुहोस्" size="lg">
+          <Modal isOpen={isCreateModalOpen} onClose={closeForm} title={t('add_family')} size="lg">
             {renderFamilyForm(false)}
           </Modal>
-          <Modal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setEditingFamily(null); setFamilyForm(initialFamilyForm); setFormErrors({}); }} title="परिवार अद्यावधिक गर्नुहोस्" size="lg">
+          <Modal isOpen={isEditModalOpen} onClose={closeForm} title={t('update_family')} size="lg">
             {renderFamilyForm(true)}
           </Modal>
         </>
       )}
-      <Modal isOpen={isTreeModalOpen} onClose={() => { if (profileMemberId) { setProfileMemberId(null); return; } setIsTreeModalOpen(false); setSelectedFamily(null); }} title={`पारिवारिक वृक्ष - ${selectedFamily?.familyName || ''}`} size="xl">
+
+      <Modal
+        isOpen={isTreeModalOpen}
+        onClose={() => {
+          if (profileMemberId) {
+            setProfileMemberId(null);
+            return;
+          }
+          setIsTreeModalOpen(false);
+          setSelectedFamily(null);
+        }}
+        title={t('family_tree_title', { name: selectedFamily?.familyName || '' })}
+        size="xl"
+      >
         {selectedFamily && (
-          <div className="min-h-[400px] max-h-[75vh] overflow-auto">
+          <div className="max-h-[75vh] min-h-[400px] overflow-auto">
             <FamilyTreeView familyId={selectedFamily._id} onMemberClick={(member) => setProfileMemberId(member._id)} />
             <MemberProfileModal memberId={profileMemberId} onClose={() => setProfileMemberId(null)} />
           </div>
         )}
       </Modal>
-      <Modal isOpen={isDetailsModalOpen} onClose={() => { setIsDetailsModalOpen(false); setSelectedFamily(null); }} title="परिवार विवरण" size="lg">
+
+      <Modal isOpen={isDetailsModalOpen} onClose={() => { setIsDetailsModalOpen(false); setSelectedFamily(null); }} title={t('family_details')} size="lg">
         {selectedFamily && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">परिवारको नाम</p><p className="font-medium">{selectedFamily.familyName}</p></div>
-              <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">परिवार नम्बर</p><p className="font-medium">{selectedFamily.familyNumber}</p></div>
-              <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">घर नम्बर</p><p className="font-medium">{selectedFamily.house?.houseNumber || 'N/A'}</p></div>
-              <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">घर आइडी</p><p className="font-medium text-green-600">{selectedFamily.houseIdentifier || 'N/A'}</p></div>
-              <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">घरको नाम</p><p className="font-medium">{selectedFamily.house?.houseName || 'N/A'}</p></div>
-              <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">वंश/पुस्ता</p><p className="font-medium">{selectedFamily.vanshaGenerationNumber || 'N/A'}</p></div>
-              <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">कुल सदस्य</p><p className="font-medium">{getFamilyMemberCount(selectedFamily._id)}</p></div>
-              <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">पुस्ताहरू</p><p className="font-medium">{getFamilyGenerations(selectedFamily._id)}</p></div>
-              <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">स्थिति</p><span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedFamily.status === 'closed' ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}`}>{selectedFamily.status === 'closed' ? 'बन्द' : 'खुला'}</span></div>
-              {selectedFamily.familyHead && <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">घरमुली</p><p className="font-medium">{typeof selectedFamily.familyHead === 'object' ? selectedFamily.familyHead.name : selectedFamily.familyHead}</p></div>}
-              {selectedFamily.clan && <div className="p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">कुल / गोत्र</p><p className="font-medium">{selectedFamily.clan}</p></div>}
-              {selectedFamily.currentAddress && <div className="p-3 bg-gray-50 rounded-lg col-span-2"><p className="text-xs text-gray-500">हालको ठेगाना</p><p className="font-medium">{selectedFamily.currentAddress}</p></div>}
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                [t('family_name'), selectedFamily.familyName],
+                [t('family_number'), selectedFamily.familyNumber],
+                [t('house_number'), selectedFamily.house?.houseNumber || '—'],
+                [t('house_id'), selectedFamily.houseIdentifier || '—'],
+                [t('house_name'), selectedFamily.house?.houseName || '—'],
+                [t('vansha_generation_number'), selectedFamily.vanshaGenerationNumber || '—'],
+                [t('total_members'), getFamilyCount(selectedFamily, 'memberCount')],
+                [t('male_members'), getFamilyCount(selectedFamily, 'maleCount')],
+                [t('female_members'), getFamilyCount(selectedFamily, 'femaleCount')],
+                [t('generations'), getFamilyGenerations(selectedFamily._id)],
+                [t('family_head'), getFamilyHeadName(selectedFamily)],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">{label}</p>
+                  <p className="font-medium text-slate-900">{value || '—'}</p>
+                </div>
+              ))}
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs text-slate-500">{t('status')}</p>
+                <span className={`mt-1 inline-block rounded-full px-2 py-1 text-xs font-medium ${
+                  selectedFamily.status === 'closed' ? 'bg-slate-200 text-slate-600' : 'bg-emerald-50 text-emerald-800'
+                }`}>
+                  {selectedFamily.status === 'closed' ? t('closed') : t('open')}
+                </span>
+              </div>
+              {selectedFamily.clan && (
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">{t('clan')}</p>
+                  <p className="font-medium text-slate-900">{selectedFamily.clan}</p>
+                </div>
+              )}
+              {selectedFamily.currentAddress && (
+                <div className="col-span-2 rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">{t('current_address')}</p>
+                  <p className="font-medium text-slate-900">{selectedFamily.currentAddress}</p>
+                </div>
+              )}
             </div>
+
             <div>
-              <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><FaUser className="text-green-500" /> सदस्यहरू ({getFamilyMemberCount(selectedFamily._id)})</h4>
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <h4 className="mb-3 flex items-center gap-2 font-semibold text-slate-800">
+                <UserGroupIcon className="h-4 w-4 text-emerald-800" />
+                {t('members')} ({getFamilyMemberCount(selectedFamily._id)})
+              </h4>
+              <div className="overflow-hidden rounded-xl border border-slate-200">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium text-gray-500">क्र.सं.</th><th className="px-4 py-2 text-left text-xs font-medium text-gray-500">नाम</th><th className="px-4 py-2 text-left text-xs font-medium text-gray-500">सम्बन्ध</th><th className="px-4 py-2 text-left text-xs font-medium text-gray-500">पुस्ता</th><th className="px-4 py-2 text-left text-xs font-medium text-gray-500">स्थिति</th></tr></thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      {[t('serial_no'), t('name'), t('relationship'), t('generation'), t('status')].map((label) => (
+                        <th key={label} className="px-4 py-2 text-left text-xs font-medium text-slate-600">{label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
                     {familyMembers.map((member, index) => (
-                      <tr key={member._id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-xs text-gray-500">{index + 1}</td>
-                        <td className="px-4 py-2 font-medium text-gray-700">{member.name}</td>
-                        <td className="px-4 py-2 text-gray-600">{member.lineageRole === 'lineage_head' ? 'घरमुली' : getRelationshipLabel(member.relationship)}</td>
-                        <td className="px-4 py-2 text-gray-600">{member.generation || 'N/A'}</td>
-                        <td className="px-4 py-2"><span className={`px-2 py-0.5 rounded-full text-xs ${member.isAlive !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{member.isAlive !== false ? 'जीवित' : 'मृत'}</span></td>
+                      <tr key={member._id} className="hover:bg-slate-50">
+                        <td className="px-4 py-2 text-xs text-slate-500">{index + 1}</td>
+                        <td className="px-4 py-2 font-medium text-slate-800">{member.name}</td>
+                        <td className="px-4 py-2 text-slate-600">
+                          {member.lineageRole === 'lineage_head' ? t('family_head') : getRelationshipLabel(member.relationship)}
+                        </td>
+                        <td className="px-4 py-2 text-slate-600">{member.generation || '—'}</td>
+                        <td className="px-4 py-2">
+                          <span className={`rounded-full px-2 py-0.5 text-xs ${
+                            member.isAlive !== false ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {member.isAlive !== false ? t('living') : t('deceased')}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

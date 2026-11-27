@@ -6,8 +6,10 @@ import { useMutation } from '@tanstack/react-query';
 import { updateDocumentSettings } from '../../api/settings';
 import toast from 'react-hot-toast';
 import * as Icons from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const DocumentSettings = ({ data, onDataChange }) => {
+  const { t } = useLanguage();
   const [settings, setSettings] = useState({
     allowedFileTypes: ['pdf', 'jpg', 'png', 'docx'],
     maxUploadSize: 10,
@@ -19,7 +21,7 @@ const DocumentSettings = ({ data, onDataChange }) => {
   const updateMutation = useMutation({
     mutationFn: updateDocumentSettings,
     onSuccess: () => {
-      toast.success('Document settings updated');
+      toast.success(t('set_document_updated'));
       onDataChange();
     },
   });
@@ -65,7 +67,7 @@ const DocumentSettings = ({ data, onDataChange }) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-3">
-          Allowed File Types
+          {t('doc_allowed_types')}
         </label>
         <div className="flex flex-wrap gap-3">
           {fileTypes.map((type) => {
@@ -92,7 +94,7 @@ const DocumentSettings = ({ data, onDataChange }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Maximum Upload Size (MB)
+          {t('doc_max_upload_size')}
         </label>
         <input
           type="number"
@@ -107,7 +109,7 @@ const DocumentSettings = ({ data, onDataChange }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Document Storage Path
+          {t('doc_storage_path')}
         </label>
         <input
           type="text"
@@ -121,8 +123,8 @@ const DocumentSettings = ({ data, onDataChange }) => {
       <div className="space-y-3">
         <div className="flex items-center justify-between py-2">
           <div>
-            <h4 className="font-medium text-gray-900">Auto Rename Files</h4>
-            <p className="text-sm text-gray-600">Automatically rename uploaded files with a unique identifier</p>
+            <h4 className="font-medium text-gray-900">{t('doc_auto_rename')}</h4>
+            <p className="text-sm text-gray-600">{t('doc_auto_rename_hint')}</p>
           </div>
           <Toggle
             enabled={settings.autoRename}
@@ -135,8 +137,8 @@ const DocumentSettings = ({ data, onDataChange }) => {
 
         <div className="flex items-center justify-between py-2 border-t border-gray-100">
           <div>
-            <h4 className="font-medium text-gray-900">Delete Old Files</h4>
-            <p className="text-sm text-gray-600">Automatically delete files older than 30 days</p>
+            <h4 className="font-medium text-gray-900">{t('doc_delete_old')}</h4>
+            <p className="text-sm text-gray-600">{t('doc_delete_old_hint')}</p>
           </div>
           <Toggle
             enabled={settings.deleteOldFiles}
@@ -150,7 +152,7 @@ const DocumentSettings = ({ data, onDataChange }) => {
 
       <div className="flex justify-end">
         <Button type="submit" disabled={updateMutation.isPending}>
-          {updateMutation.isPending ? 'Saving...' : 'Save Document Settings'}
+          {updateMutation.isPending ? t('saving') : t('doc_save')}
         </Button>
       </div>
     </form>

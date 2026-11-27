@@ -14,15 +14,22 @@ export const buildMemberQuery = async (params = {}) => {
     search, gender, status, generation, family, district, province, house,
     vanshaGenerationNumber, lineageRole,
   } = params;
-  const verificationStatus = params.verificationStatus || params.verification;
   const query = {};
 
   if (search && String(search).trim()) {
     const text = containsText(search);
+    const [familyIds, houseIds] = await Promise.all([
+      Family.find({ $or: [{ familyName: text }, { familyNumber: text }] }).distinct('_id'),
+      House.find({ houseNumber: text }).distinct('_id'),
+    ]);
+    const familiesInHouse = houseIds.length
+      ? await Family.find({ house: { $in: houseIds } }).distinct('_id')
+      : [];
     query.$or = [
       'name', 'surname', 'memberNumber', 'vanshaGenerationNumber',
       'phone', 'email', 'citizenshipNumber', 'houseNumber',
     ].map((field) => ({ [field]: text }));
+    query.$or.push({ family: { $in: familyIds } }, { family: { $in: familiesInHouse } });
   }
 
   if (gender) query.gender = gender;
@@ -35,7 +42,6 @@ export const buildMemberQuery = async (params = {}) => {
   const generationNumber = parseInt(generation, 10);
   if (!Number.isNaN(generationNumber)) query.generation = generationNumber;
 
-  if (verificationStatus) query.verificationStatus = verificationStatus;
   if (district) query.district = district;
   if (province) query.province = province;
   if (lineageRole) query.lineageRole = lineageRole;

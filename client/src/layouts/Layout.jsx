@@ -116,11 +116,9 @@ import React, { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import { useLanguage } from '../context/LanguageContext';
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { t } = useLanguage();
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -131,26 +129,21 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      {/* Sidebar */}
+    <div className="app-shell bg-slate-100">
       <Sidebar
         isOpen={sidebarOpen}
         toggle={closeSidebar}
       />
 
-      {/* Right Side */}
-      <div className="lg:ml-72 flex flex-col min-h-screen transition-all duration-300">
-        <Header
-          toggleSidebar={toggleSidebar}
-        />
+      <div className="flex min-h-0 flex-1 flex-col transition-all duration-300 lg:ml-72">
+        <Header toggleSidebar={toggleSidebar} />
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8 mt-16">
-          <div className="max-w-7xl mx-auto">
+        <main className="app-main">
+          <div className="app-page-wrap">
             {children}
+            <Footer />
           </div>
         </main>
-
-        <Footer />
       </div>
     </div>
   );

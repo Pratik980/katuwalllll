@@ -1,74 +1,29 @@
-
 import axios from './axios';
 
-export const generateFamilyReport = async (params) => {
-  const response = await axios.get('/reports/family', { 
-    params,
-    responseType: 'blob' 
-  });
-  return response.data;
+export const fetchReport = async (path, params = {}) => {
+  const { data } = await axios.get(path, { params: { ...params, format: 'json' } });
+  return data;
 };
 
-export const generateAllFamiliesReport = async (params) => {
-  const response = await axios.get('/reports/all-families', { 
-    params,
-    responseType: 'blob' 
+export const fetchReportExcel = async (path, params = {}, fileName) => {
+  const response = await axios.get(path, {
+    params: { ...params, format: 'excel' },
+    responseType: 'blob',
   });
-  return response.data;
+  const disposition = response.headers?.['content-disposition'] || '';
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const quoted = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  const serverName = encoded ? decodeURIComponent(encoded) : quoted;
+  return { blob: response.data, fileName: fileName || serverName || 'report.xlsx' };
 };
 
-export const generateMemberReport = async (params) => {
-  const response = await axios.get('/reports/members', { 
-    params,
-    responseType: 'blob' 
-  });
-  return response.data;
-};
-
-export const generateGenerationReport = async (params) => {
-  const response = await axios.get('/reports/generation', { 
-    params,
-    responseType: 'blob' 
-  });
-  return response.data;
-};
-
-export const generateDonationReport = async (params) => {
-  const response = await axios.get('/reports/donation', { 
-    params,
-    responseType: 'blob' 
-  });
-  return response.data;
-};
-
-export const generateDemographicReport = async (params) => {
-  const response = await axios.get('/reports/demographic', { 
-    params,
-    responseType: 'blob' 
-  });
-  return response.data;
-};
-
-export const generateGenealogyReport = async (params) => {
-  const response = await axios.get('/reports/genealogy', { 
-    params,
-    responseType: 'blob' 
-  });
-  return response.data;
-};
-
-export const exportAllMembers = async (params) => {
-  const response = await axios.get('/reports/export/members', { 
-    params,
-    responseType: 'blob' 
-  });
-  return response.data;
-};
-
-export const exportFamilyTree = async (params) => {
-  const response = await axios.get('/reports/export/family-tree', { 
-    params,
-    responseType: 'blob' 
-  });
-  return response.data;
-};
+export const getFamilyReport = (params) => fetchReport('/reports/family', params);
+export const getAllFamiliesReport = (params) => fetchReport('/reports/all-families', params);
+export const getMemberReport = (params) => fetchReport('/reports/members', params);
+export const getGenerationReport = (params) => fetchReport('/reports/generation', params);
+export const getDonationReport = (params) => fetchReport('/reports/donation', params);
+export const getDemographicReport = (params) => fetchReport('/reports/demographic', params);
+export const getGenealogyReport = (params) => fetchReport('/reports/genealogy', params);
+export const getQRReport = (params) => fetchReport('/reports/qr', params);
+export const getAllMembersForExport = (params) => fetchReport('/reports/members', params);
+export const getFamilyTreeReport = (params) => fetchReport('/reports/export/family-tree', params);

@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import api, { refreshCsrfToken } from '../api/axios';
 import { setCsrfToken } from '../api/csrfToken';
+import { useLanguage } from './LanguageContext';
 
 const AuthContext = createContext(null);
 
@@ -9,6 +10,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [initializationError, setInitializationError] = useState('');
+  const { t } = useLanguage();
+  const tRef = useRef(t);
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   const refreshUser = useCallback(async () => {
     const response = await api.get('/auth/me');
@@ -25,7 +32,7 @@ export const AuthProvider = ({ children }) => {
         if (active) setUser(response.data.user);
       } catch (error) {
         if (active && error.response?.status !== 401) {
-          setInitializationError(error.response?.data?.message || 'Unable to connect to the account service.');
+          setInitializationError(error.response?.data?.message || tRef.current('auth_connect_failed'));
         }
       } finally {
         if (active) setLoading(false);
@@ -49,7 +56,7 @@ export const AuthProvider = ({ children }) => {
       await api.post('/auth/logout', {}, { _skipErrorToast: true });
     } catch (error) {
       if (error.response?.status !== 401) {
-        toast.error(error.response?.data?.message || 'Signed out locally, but the server session could not be cleared.');
+        toast.error(error.response?.data?.message || t('auth_signout_failed'));
       }
     } finally {
       setCsrfToken('');
@@ -58,7 +65,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('memberDraft');
       localStorage.removeItem('memberDraftPhotos');
     }
-  }, []);
+  }, [t]);
 
   const updateUser = useCallback((nextUser) => setUser(nextUser), []);
   const value = useMemo(() => ({

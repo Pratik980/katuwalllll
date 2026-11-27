@@ -5,8 +5,10 @@ import Toggle from '../Toggle';
 import { useMutation } from '@tanstack/react-query';
 import { updateReportSettings } from '../../api/settings';
 import toast from 'react-hot-toast';
+import { useLanguage } from '../../context/LanguageContext';
 
 const ReportSettings = ({ data, onDataChange }) => {
+  const { t } = useLanguage();
   const [settings, setSettings] = useState({
     defaultExportFormat: 'xlsx',
     includeMemberPhoto: true,
@@ -21,7 +23,7 @@ const ReportSettings = ({ data, onDataChange }) => {
   const updateMutation = useMutation({
     mutationFn: updateReportSettings,
     onSuccess: () => {
-      toast.success('Report settings updated');
+      toast.success(t('set_report_updated'));
       onDataChange();
     },
   });
@@ -50,7 +52,7 @@ const ReportSettings = ({ data, onDataChange }) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Default Export Format
+          {t('rep_default_format')}
         </label>
         <select
           name="defaultExportFormat"
@@ -66,7 +68,7 @@ const ReportSettings = ({ data, onDataChange }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Date Format
+          {t('rep_date_format')}
         </label>
         <select
           name="dateFormat"
@@ -83,7 +85,7 @@ const ReportSettings = ({ data, onDataChange }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Excel File Name Format
+          {t('rep_file_name_format')}
         </label>
         <input
           type="text"
@@ -94,15 +96,15 @@ const ReportSettings = ({ data, onDataChange }) => {
           className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
         />
         <p className="text-sm text-gray-600 mt-1">
-          Use {'{report_type}'} and {'{date}'} as placeholders
+          {t('rep_placeholders_hint')}
         </p>
       </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between py-2">
           <div>
-            <h4 className="font-medium text-gray-900">Include Member Photo</h4>
-            <p className="text-sm text-gray-600">Include member photos in reports</p>
+            <h4 className="font-medium text-gray-900">{t('rep_include_photo')}</h4>
+            <p className="text-sm text-gray-600">{t('rep_include_photo_hint')}</p>
           </div>
           <Toggle
             enabled={settings.includeMemberPhoto}
@@ -115,8 +117,8 @@ const ReportSettings = ({ data, onDataChange }) => {
 
         <div className="flex items-center justify-between py-2 border-t border-gray-100">
           <div>
-            <h4 className="font-medium text-gray-900">Include Contact Details</h4>
-            <p className="text-sm text-gray-600">Include contact information in reports</p>
+            <h4 className="font-medium text-gray-900">{t('rep_include_contact')}</h4>
+            <p className="text-sm text-gray-600">{t('rep_include_contact_hint')}</p>
           </div>
           <Toggle
             enabled={settings.includeContactDetails}
@@ -129,8 +131,8 @@ const ReportSettings = ({ data, onDataChange }) => {
 
         <div className="flex items-center justify-between py-2 border-t border-gray-100">
           <div>
-            <h4 className="font-medium text-gray-900">Include Address</h4>
-            <p className="text-sm text-gray-600">Include address information in reports</p>
+            <h4 className="font-medium text-gray-900">{t('rep_include_address')}</h4>
+            <p className="text-sm text-gray-600">{t('rep_include_address_hint')}</p>
           </div>
           <Toggle
             enabled={settings.includeAddress}
@@ -143,8 +145,8 @@ const ReportSettings = ({ data, onDataChange }) => {
 
         <div className="flex items-center justify-between py-2 border-t border-gray-100">
           <div>
-            <h4 className="font-medium text-gray-900">Include Family Information</h4>
-            <p className="text-sm text-gray-600">Include family member information in reports</p>
+            <h4 className="font-medium text-gray-900">{t('rep_include_family')}</h4>
+            <p className="text-sm text-gray-600">{t('rep_include_family_hint')}</p>
           </div>
           <Toggle
             enabled={settings.includeFamilyInformation}
@@ -157,8 +159,8 @@ const ReportSettings = ({ data, onDataChange }) => {
 
         <div className="flex items-center justify-between py-2 border-t border-gray-100">
           <div>
-            <h4 className="font-medium text-gray-900">Auto Column Width</h4>
-            <p className="text-sm text-gray-600">Automatically adjust column width in Excel reports</p>
+            <h4 className="font-medium text-gray-900">{t('rep_auto_column_width')}</h4>
+            <p className="text-sm text-gray-600">{t('rep_auto_column_width_hint')}</p>
           </div>
           <Toggle
             enabled={settings.autoColumnWidth}
@@ -172,7 +174,7 @@ const ReportSettings = ({ data, onDataChange }) => {
 
       <div className="flex justify-end">
         <Button type="submit" disabled={updateMutation.isPending}>
-          {updateMutation.isPending ? 'Saving...' : 'Save Report Settings'}
+          {updateMutation.isPending ? t('saving') : t('rep_save')}
         </Button>
       </div>
     </form>

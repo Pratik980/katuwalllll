@@ -5,6 +5,7 @@ import { SocketProvider } from './context/SocketContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { OrganizationProvider } from './context/OrganizationContext';
+import { useLanguage } from './context/LanguageContext';
 import RequireAuth from './components/RequireAuth';
 import Layout from './layouts/Layout';
 import Login from './pages/Login';
@@ -39,15 +40,16 @@ const queryClient = new QueryClient({
 
 const PublicOnly = ({ children }) => {
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg mb-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-6 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-800 text-2xl font-bold text-white shadow-sm">
           KB
         </div>
-        <div className="animate-spin rounded-full h-8 w-8 border-3 border-emerald-600 border-t-transparent mb-3" />
-        <h3 className="text-base font-bold text-slate-800">Katuwal Bansha</h3>
-        <p className="text-xs text-slate-500 mt-1">Connecting to account service...</p>
+        <div className="mb-3 h-8 w-8 animate-spin rounded-full border-3 border-emerald-700 border-t-transparent" />
+        <h3 className="text-base font-bold text-slate-800">{t('app_name')}</h3>
+        <p className="mt-1 text-xs text-slate-500">{t('connecting_to_account')}</p>
       </div>
     );
   }
@@ -74,9 +76,9 @@ function App() {
                   <Route path="members" element={<Members />} />
                   <Route path="families" element={<Families />} />
                   <Route path="family-tree" element={<FamilyTree />} />
-                  <Route path="data-entry" element={<RequireAuth roles={['admin', 'staff']}><DataEntry /></RequireAuth>} />
+                  <Route path="data-entry" element={<RequireAuth roles={['admin', 'staff', 'user']}><DataEntry /></RequireAuth>} />
                   <Route path="notifications" element={<Notifications />} />
-                  <Route path="reports" element={<Reports />} />
+                  <Route path="reports" element={<RequireAuth roles={['admin']}><Reports /></RequireAuth>} />
                   <Route path="donations" element={<RequireAuth roles={['admin', 'staff']}><Donations /></RequireAuth>} />
                   <Route path="chat" element={<RequireAuth roles={['admin', 'staff', 'user']}><Chat /></RequireAuth>} />
                   <Route path="documents" element={<RequireAuth roles={['admin', 'user']}><Documents /></RequireAuth>} />

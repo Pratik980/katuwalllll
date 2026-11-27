@@ -1,4 +1,3 @@
-// src/components/settings/GeneralSettings.jsx
 import { useState, useEffect } from 'react';
 import ImageUpload from '../ImageUpload';
 import Button from '../Button';
@@ -35,16 +34,16 @@ const GeneralSettings = ({ data, onDataChange }) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization'] });
-      toast.success('Organization settings saved');
+      toast.success(t('organization_settings_saved'));
     },
-    onError: (error) => toast.error(error.response?.data?.message || 'Could not save organization settings'),
+    onError: (error) => toast.error(error.response?.data?.message || t('organization_settings_failed')),
   });
 
   const logoMutation = useMutation({
     mutationFn: uploadLogo,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization'] });
-      toast.success('Logo uploaded successfully');
+      toast.success(t('logo_uploaded'));
       onDataChange();
     },
   });
@@ -80,7 +79,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
   const handleLogoUpload = async (file) => {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File size exceeds 5MB limit');
+      toast.error(t('file_too_large'));
       return;
     }
     const form = new FormData();
@@ -93,7 +92,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
         setLogoPreview(URL.createObjectURL(file));
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to upload logo');
+      toast.error(err.response?.data?.message || t('logo_upload_failed'));
     }
   };
 
@@ -101,14 +100,14 @@ const GeneralSettings = ({ data, onDataChange }) => {
     <div className="space-y-6">
       <div className="flex flex-col items-center p-4 bg-slate-50/80 rounded-2xl border border-slate-200">
         <div className="text-center mb-3">
-          <h4 className="text-sm font-semibold text-slate-800">{t('brand_identity') || 'Brand Identity / Logo'}</h4>
-          <p className="text-xs text-slate-500 mt-0.5">{t('logo_preview_desc') || 'Displays in header and sidebar across the portal'}</p>
+          <h4 className="text-sm font-semibold text-slate-800">{t('brand_identity')}</h4>
+          <p className="mt-0.5 text-xs text-slate-500">{t('logo_preview_desc')}</p>
         </div>
         {logoPreview ? (
           <div className="relative group">
             <img
               src={logoPreview}
-              alt="Organization Logo"
+              alt={t('organization_name')}
               className="h-32 w-32 object-contain border-2 border-emerald-500 rounded-2xl bg-white p-2 shadow-md"
             />
             <span className="absolute -top-2 -right-2 bg-emerald-600 text-white rounded-full p-1 text-xs shadow">
@@ -116,15 +115,15 @@ const GeneralSettings = ({ data, onDataChange }) => {
             </span>
           </div>
         ) : (
-          <div className="h-32 w-32 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex flex-col items-center justify-center shadow-lg text-white">
+          <div className="flex h-32 w-32 flex-col items-center justify-center rounded-2xl bg-emerald-800 text-white shadow-sm">
             <span className="text-4xl font-black tracking-wider">KB</span>
-            <span className="text-xs font-semibold mt-1 opacity-90">Katuwal Bansha</span>
+            <span className="mt-1 text-xs font-semibold opacity-90">{t('app_name')}</span>
           </div>
         )}
         <div className="mt-4 flex flex-col items-center gap-1.5">
           <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition disabled:opacity-50">
             <UploadCloud className="h-4 w-4" />
-            {logoMutation.isPending ? (t('uploading') || 'Uploading...') : (t('upload_logo') || 'Upload Logo')}
+            {logoMutation.isPending ? t('uploading') : t('upload_logo')}
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
@@ -137,7 +136,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
             />
           </label>
           <span className="text-xs text-slate-500">
-            PNG, JPG, WEBP, SVG (Max 5MB)
+            {t('logo_format_hint')}
           </span>
         </div>
       </div>
@@ -145,7 +144,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Organization Name *
+            {t('organization_name')} *
           </label>
           <input
             type="text"
@@ -159,7 +158,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Registration Number
+            {t('registration_number')}
           </label>
           <input
             type="text"
@@ -172,7 +171,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Phone
+            {t('phone')}
           </label>
           <input
             type="tel"
@@ -185,7 +184,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Email
+            {t('email')}
           </label>
           <input
             type="email"
@@ -198,7 +197,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Website
+            {t('website')}
           </label>
           <input
             type="url"
@@ -211,7 +210,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Established Date
+            {t('established_date')}
           </label>
           <input
             type="date"
@@ -224,7 +223,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
 
         <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Address
+            {t('address')}
           </label>
           <input
             type="text"
@@ -237,7 +236,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
 
         <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Description
+            {t('description')}
           </label>
           <textarea
             name="description"
@@ -250,7 +249,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
 
         <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Mission
+            {t('mission')}
           </label>
           <textarea
             name="mission"
@@ -263,7 +262,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
 
         <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Vision
+            {t('vision')}
           </label>
           <textarea
             name="vision"
@@ -281,7 +280,7 @@ const GeneralSettings = ({ data, onDataChange }) => {
           onClick={() => saveMutation.mutate(formData)}
           disabled={saveMutation.isPending}
         >
-          {saveMutation.isPending ? 'Saving...' : 'Save Organization Settings'}
+          {saveMutation.isPending ? t('saving') : t('save_organization_settings')}
         </Button>
       </div>
     </div>

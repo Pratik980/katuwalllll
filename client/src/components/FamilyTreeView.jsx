@@ -4,10 +4,13 @@ import { FaUser, FaTree, FaUsers } from 'react-icons/fa';
 import { getFamilyTreeByFamily } from '../api/families';
 import TreeChart from './tree/TreeChart';
 import { getRelationLabel, getBirthDateLabel, getBsDateLabel } from '../utils/treeLabels';
+import { useLanguage } from '../context/LanguageContext';
 
 const CARD_WIDTH = 176; // w-44
+const BOOK = { cardWidth: 132, linkWidth: 14, siblingGap: 10, rootGap: 32 };
 
 const MemberCard = ({ member, isSpouse, showPhotos, onClick }) => {
+  const { t } = useLanguage();
   const [photoFailed, setPhotoFailed] = useState(false);
 
   const isDeceased = member.isAlive === false;
@@ -15,6 +18,18 @@ const MemberCard = ({ member, isSpouse, showPhotos, onClick }) => {
   const hasPhoto = typeof member.photo === 'string' && member.photo.trim() !== '';
   const shouldShowPhoto = showPhotos && hasPhoto && !photoFailed;
   const birthDate = getBirthDateLabel(member);
+
+  if (!showPhotos) {
+    return (
+      <div
+        className={`book-name flex h-full w-full items-center justify-center px-1 text-center text-[13px] leading-5 break-words ${isSpouse ? 'text-gray-700' : 'font-semibold text-gray-900'} ${isPlaceholder ? 'italic cursor-default' : 'cursor-pointer hover:underline'}`}
+        onClick={isPlaceholder ? undefined : onClick}
+        title={member.name}
+      >
+        {member.name || t('tree_unknown_name')}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -28,25 +43,25 @@ const MemberCard = ({ member, isSpouse, showPhotos, onClick }) => {
           <div className={`flex w-full h-28 items-center justify-center rounded-t-xl ${isDeceased ? 'bg-gray-200' : isSpouse ? 'bg-pink-100' : 'bg-gradient-to-br from-green-100 to-emerald-100'}`}>
             <div className="text-center">
               <FaUser className={`text-4xl ${isDeceased ? 'text-gray-400' : isSpouse ? 'text-pink-300' : 'text-green-400'} mx-auto`} />
-              <span className="text-[10px] text-gray-500 mt-1 block">फोटो छैन</span>
+              <span className="text-[10px] text-gray-500 mt-1 block">{t('tree_no_photo')}</span>
             </div>
           </div>
         )}
         <div className="absolute top-1.5 left-1.5">
-          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full shadow-sm ${isSpouse ? 'bg-pink-500/90 text-white' : 'bg-white/90 text-gray-700'}`}>{getRelationLabel(member)}</span>
+          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full shadow-sm ${isSpouse ? 'bg-pink-500/90 text-white' : 'bg-white/90 text-gray-700'}`}>{getRelationLabel(member, t)}</span>
         </div>
-        {isDeceased && <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">✝ मृत</span>}
-        {member.personStatus === 'missing' && <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-orange-500 text-white px-1.5 py-0.5 rounded-full">हराएको</span>}
+        {isDeceased && <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">✝ {t('tree_deceased')}</span>}
+        {member.personStatus === 'missing' && <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-orange-500 text-white px-1.5 py-0.5 rounded-full">{t('tree_missing')}</span>}
       </div>
       <div className="p-2.5 space-y-0.5">
-        <p className="font-semibold text-xs text-gray-800 truncate" title={member.name}>{member.name || 'नाम अज्ञात'}</p>
+        <p className="font-semibold text-xs text-gray-800 truncate" title={member.name}>{member.name || t('tree_unknown_name')}</p>
         {member.surname && <p className="text-[9px] text-gray-500 truncate">{member.surname}</p>}
-        {member.vanshaGenerationNumber && <p className="text-[9px] text-gray-600">वंश: {member.vanshaGenerationNumber}</p>}
-        {member.familyNumber && <p className="text-[9px] text-gray-600">परिवार: {member.familyNumber}</p>}
+        {member.vanshaGenerationNumber && <p className="text-[9px] text-gray-600">{t('tree_vansha')}: {member.vanshaGenerationNumber}</p>}
+        {member.familyNumber && <p className="text-[9px] text-gray-600">{t('tree_family')}: {member.familyNumber}</p>}
         {member.memberNumber && <p className="text-[9px] font-mono text-green-600">ID: {member.memberNumber}</p>}
-        {birthDate && <p className="text-[8px] text-gray-400">जन्म: {birthDate}</p>}
-        {isDeceased && member.dod && <p className="text-[8px] text-red-400">मृत्यु: {getBsDateLabel(member, 'dod')}</p>}
-        {isPlaceholder && <p className="text-[8px] text-gray-400">सदस्य विवरण थपिएको छैन</p>}
+        {birthDate && <p className="text-[8px] text-gray-400">{t('tree_birth')}: {birthDate}</p>}
+        {isDeceased && member.dod && <p className="text-[8px] text-red-400">{t('tree_death')}: {getBsDateLabel(member, 'dod')}</p>}
+        {isPlaceholder && <p className="text-[8px] text-gray-400">{t('tree_no_details')}</p>}
       </div>
     </div>
   );
@@ -58,6 +73,7 @@ const FamilyTreeView = ({
   showPhotos = true,
 }) => {
   const [collapsedIds, setCollapsedIds] = useState(() => new Set());
+  const { t } = useLanguage();
 
   const { data: treeData, isLoading } = useQuery({
     queryKey: ['familyTree', familyId],
@@ -89,8 +105,8 @@ const FamilyTreeView = ({
     return (
       <div className="text-center py-12">
         <FaUsers className="text-4xl text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500">यस परिवारमा कुनै सदस्य छैनन्</p>
-        <p className="text-sm text-gray-400">पारिवारिक वृक्ष निर्माण गर्न सदस्यहरू थप्नुहोस्</p>
+        <p className="text-gray-500">{t('tree_no_members')}</p>
+        <p className="text-sm text-gray-400">{t('tree_no_members_hint')}</p>
       </div>
     );
   }
@@ -99,8 +115,8 @@ const FamilyTreeView = ({
     return (
       <div className="text-center py-12">
         <FaTree className="text-4xl text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500">पारिवारिक वृक्ष संरचना फेला परेन</p>
-        <p className="text-sm text-gray-400">पारिवारिक वृक्ष निर्माण गर्न सम्बन्धहरू थप्नुहोस्</p>
+        <p className="text-gray-500">{t('tree_no_structure')}</p>
+        <p className="text-sm text-gray-400">{t('tree_no_structure_hint')}</p>
       </div>
     );
   }
@@ -108,13 +124,14 @@ const FamilyTreeView = ({
   return (
     <div className="w-full max-h-[68vh] overflow-auto">
       <div className="text-sm text-gray-500 mb-4 text-center sticky left-0">
-        <span className="bg-gray-100 px-3 py-1 rounded-full">कुल {total} सदस्यहरू</span>
+        <span className="bg-gray-100 px-3 py-1 rounded-full">{t('tree_total_members', { count: total })}</span>
       </div>
       <div className="w-max min-w-full p-6 min-h-[400px]">
         <TreeChart
           className="mx-auto"
+          variant={showPhotos ? 'cards' : 'book'}
           roots={roots}
-          cardWidth={CARD_WIDTH}
+          {...(showPhotos ? { cardWidth: CARD_WIDTH } : BOOK)}
           collapsedIds={collapsedIds}
           onToggle={toggleNode}
           renderCard={(member, { isSpouse }) => (

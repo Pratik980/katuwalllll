@@ -308,13 +308,9 @@ async function seed() {
       updated = true;
     }
 
-    // Ensure status and verification
+    // Ensure status
     if (!member.status) {
       member.status = 'active';
-      updated = true;
-    }
-    if (!member.verificationStatus) {
-      member.verificationStatus = 'verified';
       updated = true;
     }
     if (member.isAlive === undefined) {

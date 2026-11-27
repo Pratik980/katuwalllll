@@ -22,11 +22,12 @@ router.get('/stats', requireRole('admin'), getDonationStats);
 router.get('/export/all', requireRole('admin'), exportAllDonationsToExcel);
 router.get('/export/:id', requireRole('admin'), exportDonationToExcel);
 
-// Read routes (staff sees non-financial fields only; enforced in controller)
+// Staff may record donations and view permitted non-financial details; amounts,
+// summaries, statistics and exports remain administrator-only.
 router.get('/', getDonations);
 router.get('/:id', getDonationById);
 
-router.post('/', requireRole('admin'), validate(donationValidation), createDonation);
+router.post('/', validate(donationValidation), createDonation);
 router.put('/:id', requireRole('admin'), validate(donationValidation), updateDonation);
 router.delete('/:id', requireRole('admin'), deleteDonation);
 

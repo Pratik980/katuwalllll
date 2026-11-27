@@ -38,6 +38,29 @@ const generateReceiptNumber = async () => {
   return `R-${year}-${String(counter.seq).padStart(4, '0')}`;
 };
 
+const validEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+const normalizePhone = (value) => String(value ?? '').replace(/\D/g, '');
+const validPhone = (value) => {
+  const digits = normalizePhone(value);
+  return digits.length >= 7 && digits.length <= 15;
+};
+const contactError = (name, phone, email) => {
+  if (String(name || '').trim().length < 2) return 'Donor name is required.';
+  if (!validPhone(phone)) return 'A valid donor phone number is required.';
+  if (!validEmail(email)) return 'A valid donor email address is required.';
+  return null;
+};
+const withoutFinancialFields = (donation) => {
+  const data = typeof donation.toObject === 'function' ? donation.toObject() : { ...donation };
+  delete data.amount;
+  delete data.qrPaymentReference;
+  delete data.qrPaymentCompleted;
+  delete data.qrPaymentDate;
+  delete data.createdBy;
+  delete data.updatedBy;
+  return data;
+};
+
 // Get donations with search, filters, sorting, pagination
 export const getDonations = async (req, res) => {
   try {
@@ -243,13 +266,7 @@ export const createDonation = async (req, res) => {
       updatedBy: req.user?._id || null,
     };
 
-    // Clean up empty fields
-    if (!donationData.donorEmail || donationData.donorEmail.trim() === '') {
-      delete donationData.donorEmail;
-    }
-    if (!donationData.donorPhone || donationData.donorPhone.trim() === '') {
-      delete donationData.donorPhone;
-    }
+    // Clean up empty remarks only; donor phone and email are mandatory.
     if (!donationData.remarks || donationData.remarks.trim() === '') {
       delete donationData.remarks;
     }
@@ -266,10 +283,9 @@ export const createDonation = async (req, res) => {
       }
     }
 
-    // Ensure donorName is present
-    if (!donationData.donorName) {
-      return res.status(400).json({ message: 'Donor name is required' });
-    }
+    const missingContact = contactError(donationData.donorName, donationData.donorPhone, donationData.donorEmail);
+    if (missingContact) return res.status(400).json({ message: missingContact });
+    donationData.donorPhone = normalizePhone(donationData.donorPhone);
 
     // Generate receipt number
     donationData.receiptNumber = await generateReceiptNumber();
@@ -307,6 +323,9 @@ export const createDonation = async (req, res) => {
       io.to('role:admin').emit('notification:new', notification);
     }
 
+    if (req.user?.role !== 'admin') {
+      return res.status(201).json(withoutFinancialFields(donation));
+    }
     res.status(201).json(donation);
   } catch (error) {
     console.error("❌ Create Donation Error:", error);
@@ -334,16 +353,23 @@ export const updateDonation = async (req, res) => {
       updatedBy: req.user?._id || null,
     };
 
-    // Clean up empty fields
-    if (!updateData.donorEmail || updateData.donorEmail.trim() === '') {
-      delete updateData.donorEmail;
-    }
-    if (!updateData.donorPhone || updateData.donorPhone.trim() === '') {
-      delete updateData.donorPhone;
-    }
+    // Clean up empty remarks only; donor phone and email are mandatory.
     if (!updateData.remarks || updateData.remarks.trim() === '') {
       delete updateData.remarks;
     }
+
+    if ((updateData.donorType === 'member' || updateData.donorType === 'family') && updateData.donorId) {
+      const member = await Member.findById(updateData.donorId);
+      if (!member) return res.status(400).json({ message: 'Selected member not found' });
+      updateData.donorName = member.name;
+      updateData.donorPhone = member.phone || updateData.donorPhone || donation.donorPhone || '';
+      updateData.donorEmail = member.email || updateData.donorEmail || donation.donorEmail || '';
+    }
+
+    const merged = { ...donation.toObject(), ...updateData };
+    const missingContact = contactError(merged.donorName, merged.donorPhone, merged.donorEmail);
+    if (missingContact) return res.status(400).json({ message: missingContact });
+    updateData.donorPhone = normalizePhone(merged.donorPhone);
 
     const updatedDonation = await Donation.findByIdAndUpdate(
       req.params.id,

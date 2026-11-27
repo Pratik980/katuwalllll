@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   XMarkIcon,
@@ -13,33 +13,38 @@ import {
   ChartBarSquareIcon,
   ArchiveBoxIcon,
   Cog6ToothIcon,
+  UserPlusIcon,
+  HomeModernIcon,
+  ShareIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
-import {
-  GitBranch,
-  UserPlus,
-} from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { useOrganization } from "../context/OrganizationContext";
 
 const navigationItems = [
-  { key: 'dashboard', href: "/", icon: Squares2X2Icon, roles: ['admin', 'staff', 'user'] },
-  { key: 'members', href: "/members", icon: UsersIcon, roles: ['admin', 'staff', 'user'] },
-  { key: 'data_entry', href: "/data-entry", icon: UserPlus, roles: ['admin', 'staff'] },
-  { key: 'donations', href: "/donations", icon: HeartIcon, roles: ['admin', 'staff'] },
-  { key: 'families', href: "/families", icon: GitBranch, roles: ['admin', 'staff', 'user'] },
-  { key: 'family_tree', href: "/family-tree", icon: GitBranch, roles: ['admin', 'staff', 'user'] },
-  { key: 'documents', href: "/documents", icon: DocumentTextIcon, roles: ['admin', 'user'] },
-  { key: 'chat', href: "/chat", icon: ChatBubbleLeftRightIcon, roles: ['admin', 'staff', 'user'] },
-  { key: 'notifications', href: "/notifications", icon: BellIcon, roles: ['admin', 'staff', 'user'] },
-  { key: 'reports', href: "/reports", icon: ChartBarSquareIcon, roles: ['admin', 'staff', 'user'] },
-  { key: 'backups', href: "/backups", icon: ArchiveBoxIcon, roles: ['admin'] },
-  { key: 'settings', href: "/settings", icon: Cog6ToothIcon, roles: ['admin', 'staff', 'user'] },
+  { key: "dashboard", href: "/", icon: Squares2X2Icon, roles: ["admin", "staff", "user"] },
+  { key: "members", href: "/members", icon: UsersIcon, roles: ["admin", "staff", "user"] },
+  { key: "data_entry", href: "/data-entry", icon: UserPlusIcon, roles: ["admin", "staff", "user"] },
+  { key: "donations", href: "/donations", icon: HeartIcon, roles: ["admin"] },
+  { key: "families", href: "/families", icon: HomeModernIcon, roles: ["admin", "staff", "user"] },
+  { key: "family_tree", href: "/family-tree", icon: ShareIcon, roles: ["admin", "staff", "user"] },
+  { key: "documents", href: "/documents", icon: DocumentTextIcon, roles: ["admin", "user"] },
+  { key: "chat", href: "/chat", icon: ChatBubbleLeftRightIcon, roles: ["admin", "staff", "user"] },
+  { key: "notifications", href: "/notifications", icon: BellIcon, roles: ["admin", "staff", "user"] },
+  { key: "reports", href: "/reports", icon: ChartBarSquareIcon, roles: ["admin"] },
+  { key: "backups", href: "/backups", icon: ArchiveBoxIcon, roles: ["admin"] },
+  { key: "settings", href: "/settings", icon: Cog6ToothIcon, roles: ["admin", "staff", "user"] },
 ];
 
 const accountLinks = [
-  { key: 'profile', href: "/profile", label: "My account", icon: UserCircleIcon },
-  { key: 'admin_users', href: "/admin/users", label: "Staff & access", icon: UsersIcon, adminOnly: true },
+  { key: "account_profile", href: "/profile", icon: UserCircleIcon, roles: ["admin", "staff", "user"] },
+  {
+    key: "staff_management",
+    href: "/admin/users",
+    icon: ShieldCheckIcon,
+    roles: ["admin"],
+  },
 ];
 
 export default function Sidebar({ isOpen, toggle }) {
@@ -47,17 +52,16 @@ export default function Sidebar({ isOpen, toggle }) {
   const { user, signOut } = useAuth();
   const { logo, name: orgName } = useOrganization();
   const navigate = useNavigate();
-  const [avatarError, setAvatarError] = useState(false);
-
-  useEffect(() => {
-    setAvatarError(false);
-  }, [user?.photo]);
+  const [failedAvatar, setFailedAvatar] = useState("");
+  const roleKey = `role_${user?.role}`;
+  const translatedRole = user?.role ? t(roleKey) : '';
+  const roleLabel = translatedRole === roleKey ? user.role : translatedRole;
 
   const handleSignOut = async () => {
     try {
       await signOut();
     } finally {
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
     }
   };
 
@@ -66,129 +70,141 @@ export default function Sidebar({ isOpen, toggle }) {
       {isOpen && (
         <div
           onClick={toggle}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm lg:hidden"
         />
       )}
 
       <aside
-        className={`fixed top-0 left-0 z-50 h-screen w-72 bg-white border-r border-slate-200 shadow-xl transition-transform duration-300 ease-in-out
+        className={`fixed left-0 top-0 z-50 h-screen w-72 border-r border-slate-200 bg-white shadow-xl transition-transform duration-300 ease-in-out
         ${isOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
       >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6">
+        <div className="flex h-full flex-col">
+          <div className="flex h-16 items-center justify-between border-b border-slate-200 px-6">
             <div className="flex items-center gap-3">
               {logo ? (
                 <img
                   src={logo}
-                  alt={orgName || t('app_name')}
-                  className="h-11 w-11 rounded-xl object-contain border border-slate-200 bg-white p-0.5 shadow-sm"
+                  alt={orgName || t("app_name")}
+                  className="h-11 w-11 rounded-xl border border-slate-200 bg-white object-contain p-0.5 shadow-sm"
                 />
               ) : (
-                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg text-white font-bold text-lg">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-800 text-lg font-bold text-white shadow-sm">
                   KB
                 </div>
               )}
-              <div>
-                <h1 className="font-bold text-lg text-slate-800 leading-tight">
-                  {orgName || t('app_name')}
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-bold leading-tight text-slate-800">
+                  {orgName || t("app_name")}
                 </h1>
-                <p className="text-xs text-slate-500">
-                  {t('management_system')}
-                </p>
+                <p className="truncate text-xs text-slate-500">{t("management_system")}</p>
               </div>
             </div>
             <button
+              type="button"
               onClick={toggle}
-              className="lg:hidden rounded-lg p-2 hover:bg-slate-100"
+              className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 lg:hidden"
+              aria-label={t("close")}
             >
               <XMarkIcon className="h-6 w-6" />
             </button>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto px-4 py-6">
-            <ul className="space-y-2">
-              {navigationItems.filter((item) => item.roles.includes(user?.role)).map((item) => {
-                const Icon = item.icon;
-                const label = t(item.key);
-                return (
-                  <li key={item.key}>
-                    <NavLink
-                      to={item.href}
-                      end={item.href === "/"}
-                      className={({ isActive }) =>
-                        `group flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-200
-                        ${
-                          isActive
-                            ? "bg-gradient-to-r from-green-600 to-emerald-500 text-white shadow-lg"
-                            : "text-slate-700 hover:bg-slate-100 hover:text-green-600"
-                        }`
-                      }
-                    >
-                      <Icon className="h-6 w-6 flex-shrink-0" />
-                      <span className="font-medium">{label}</span>
-                    </NavLink>
-                  </li>
-                );
-              })}
+          <nav className="flex-1 overflow-y-auto px-4 py-5" aria-label={t("dashboard")}>
+            <ul className="space-y-1.5">
+              {navigationItems
+                .filter((item) => item.roles.includes(user?.role))
+                .map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.key}>
+                      <NavLink
+                        to={item.href}
+                        end={item.href === "/"}
+                        className={({ isActive }) =>
+                          `group flex items-center gap-3.5 rounded-xl px-4 py-2.5 transition-colors duration-200 ${
+                            isActive
+                              ? "bg-emerald-800 text-white shadow-sm"
+                              : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-800"
+                          }`
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <Icon
+                              className={`h-5 w-5 shrink-0 ${
+                                isActive ? "text-white" : "text-slate-500 group-hover:text-emerald-700"
+                              }`}
+                            />
+                            <span className="truncate text-sm font-medium">{t(item.key)}</span>
+                          </>
+                        )}
+                      </NavLink>
+                    </li>
+                  );
+                })}
             </ul>
           </nav>
 
-          {/* Account + sign out */}
           <div className="border-t border-slate-200 p-4">
             {user && (
               <>
-                <div className="mb-3 flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2">
-                  {user.photo && !avatarError ? (
+                <div className="mb-3 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  {user.photo && failedAvatar !== user.photo ? (
                     <img
                       src={user.photo}
                       alt={user.name}
-                      onError={() => setAvatarError(true)}
-                      className="h-9 w-9 rounded-full object-cover border border-slate-200 shrink-0 bg-white shadow-xs"
+                      onError={() => setFailedAvatar(user.photo)}
+                      className="h-9 w-9 shrink-0 rounded-full border border-slate-200 bg-white object-cover shadow-sm"
                     />
                   ) : (
-                    <div className="h-9 w-9 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-xs">
-                      {user.name?.charAt(0).toUpperCase() || '?'}
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-sm font-bold text-white shadow-sm">
+                      {user.name?.charAt(0).toUpperCase() || "?"}
                     </div>
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-800">{user.name}</p>
-                    <p className="text-xs capitalize text-slate-500">{user.role}</p>
+                    <p className="truncate text-xs text-slate-500">{roleLabel}</p>
                   </div>
                 </div>
+
                 <ul className="mb-2 space-y-1">
-                  {accountLinks.filter((item) => !item.adminOnly || user.role === 'admin').map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <li key={item.key}>
-                        <NavLink
-                          to={item.href}
-                          className={({ isActive }) =>
-                            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                              isActive ? 'bg-green-50 text-green-700' : 'text-slate-600 hover:bg-slate-100'
-                            }`
-                          }
-                        >
-                          <Icon className="h-5 w-5" />
-                          <span>{item.label}</span>
-                        </NavLink>
-                      </li>
-                    );
-                  })}
+                  {accountLinks
+                    .filter((item) => item.roles.includes(user.role))
+                    .map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <li key={item.key}>
+                          <NavLink
+                            to={item.href}
+                            className={({ isActive }) =>
+                              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                                isActive
+                                  ? "bg-emerald-50 text-emerald-800"
+                                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                              }`
+                            }
+                          >
+                            <Icon className="h-5 w-5" />
+                            <span className="truncate">{t(item.key)}</span>
+                          </NavLink>
+                        </li>
+                      );
+                    })}
                 </ul>
+
                 <button
+                  type="button"
                   onClick={handleSignOut}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-red-50 hover:text-red-700"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                 >
                   <ArrowRightOnRectangleIcon className="h-5 w-5" />
-                  <span>Sign out</span>
+                  <span>{t("sign_out")}</span>
                 </button>
               </>
             )}
             <p className="mt-4 text-center text-xs text-slate-400">
-              © 2026 NDS Software
+              {t('copyright_line', { year: new Date().getFullYear() })}
             </p>
           </div>
         </div>

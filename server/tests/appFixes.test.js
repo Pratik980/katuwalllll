@@ -180,14 +180,29 @@ test('every filter of the Members page narrows the list', async () => {
   assert.deepEqual(await list('vanshaGenerationNumber=9'), ['मृत']);
   assert.deepEqual(await list(`district=${encodeURIComponent('कास्की')}`), ['पोखरेली']);
   assert.deepEqual(await list(`province=${encodeURIComponent('गण्डकी प्रदेश')}`), ['पोखरेली']);
-  assert.deepEqual(await list('verificationStatus=verified'), []);
-  assert.equal((await list('verificationStatus=pending')).length, 4);
+  assert.equal((await list(`search=${encodeURIComponent('कटुवाल परिवार')}`)).length, 3, 'family name is searchable');
+  assert.equal((await list(`search=${encodeURIComponent('अर्को परिवार')}`)).includes('अर्को घरको'), true);
   assert.deepEqual(await list('family=not-an-id'), []);
 
   // the list also carries what the table shows in its House and Family columns
   const row = (await api.get('/members?limit=100&house=77')).data.data[0];
   assert.equal(row.family.house.houseNumber, '77');
   assert.equal(row.family.familyNumber, '1');
+});
+
+test('the member list uses real database counts, paging and allowlisted sorting', async () => {
+  await addMember({ name: 'Bhadra' });
+  await addMember({ name: 'Asha' });
+
+  const page = await api.get('/members?page=1&limit=1&sort=memberNumber');
+  assert.equal(page.data.pagination.total, 2);
+  assert.equal(page.data.pagination.pages, 2);
+  assert.equal(page.data.pagination.limit, 1);
+  assert.equal(page.data.data[0].name, 'Bhadra');
+
+  const sorted = await api.get('/members?limit=100&sort=name');
+  assert.deepEqual(names(sorted.data.data), ['Asha', 'Bhadra']);
+  assert.equal((await api.get('/members?limit=100&sort=drop')).status, 200, 'an unknown sort falls back to newest');
 });
 
 // ---- Same phone / same name ------------------------------------------------
@@ -246,13 +261,30 @@ test('a house can hold more than ten families, each with its own number', async 
   assert.equal((await api.get('/houses/next-number')).data.nextHouseNumber, '13');
 });
 
-test('the family list counts members and generations', async () => {
+test('the family list counts members, genders, and generations', async () => {
   const father = await addMember({ name: 'बुवा' });
   await addMember({ name: 'छोरा', father: father._id });
+  await addMember({ name: 'आमा', gender: 'female' });
   const list = await api.get('/families?limit=1000');
   const family = list.data.data.find((f) => f._id === familyId);
-  assert.equal(family.memberCount, 2);
+  assert.equal(family.memberCount, 3);
+  assert.equal(family.maleCount, 2);
+  assert.equal(family.femaleCount, 1);
   assert.equal(family.generationCount, 2);
+});
+
+test('the family list filters by status', async () => {
+  const created = await api.post('/families', { familyName: 'बन्द परिवार', houseNumber: '99' });
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  const closed = await api.post(`/families/${created.data._id}/close`, { reason: 'जाँच' });
+  assert.equal(closed.status, 200, JSON.stringify(closed.data));
+
+  const open = await api.get('/families?status=open&limit=1000');
+  const closedList = await api.get('/families?status=closed&limit=1000');
+
+  assert.ok(open.data.data.length >= 1);
+  assert.ok(open.data.data.every((family) => family.status === 'open'));
+  assert.deepEqual(closedList.data.data.map((family) => family.familyName), ['बन्द परिवार']);
 });
 
 // ---- Second wife, and undoing a wrong link ---------------------------------
@@ -323,7 +355,7 @@ test('a spouse removed on the form stays removed', async () => {
   assert.equal((await getTree()).data.length, 2);
 });
 
-// ---- Status, verification, unknown name ------------------------------------
+// ---- Status, unknown name ---------------------------------------------------
 
 test('a member marked as not alive is deceased, and living again when corrected', async () => {
   const member = await addMember({ name: 'व्यक्ति', isAlive: false });
@@ -336,22 +368,18 @@ test('a member marked as not alive is deceased, and living again when corrected'
   assert.equal((await stored(member._id)).status, 'deceased');
 });
 
-test('verification can be approved, rejected and set back to pending', async () => {
+test('the old verification endpoint is gone while member editing keeps the record', async () => {
   const member = await addMember({ name: 'जाँच हुने' });
-  assert.equal(member.verificationStatus, 'pending');
+  assert.equal((await api.put(`/members/${member._id}/verification`, { status: 'verified' })).status, 404);
 
-  for (const status of ['verified', 'rejected', 'pending']) {
-    const res = await api.put(`/members/${member._id}/verification`, { status });
-    assert.equal(res.status, 200);
-    assert.equal(res.data.verificationStatus, status);
-  }
-  assert.equal((await api.put(`/members/${member._id}/verification`, { status: 'maybe' })).status, 400);
-  assert.equal((await api.put('/members/not-an-id/verification', { status: 'verified' })).status, 404);
+  const list = await api.get('/members?verificationStatus=verified');
+  assert.equal(list.status, 200, 'an old verification filter is ignored instead of breaking the list');
+  assert.equal(list.data.pagination.total, 1);
 
-  // the member form does not undo an approval
-  await api.put(`/members/${member._id}/verification`, { status: 'verified' });
   assert.equal((await editMember(member._id, { occupation: 'Farmer' })).status, 200);
-  assert.equal((await stored(member._id)).verificationStatus, 'verified');
+  const saved = await stored(member._id);
+  assert.equal(saved.name, 'जाँच हुने');
+  assert.equal(saved.occupation, 'Farmer');
 });
 
 test('a person whose name is unknown is not given today as a birth date', async () => {
@@ -418,27 +446,26 @@ test('notifications can be cleared: only the read ones, or all', async () => {
 
 // ---- Reports ---------------------------------------------------------------
 
-test('reports: verification filter, Nepali family names, one family, and Export All with filters', async () => {
+test('reports: Nepali family names, one family, clean sheets, and Export All with filters', async () => {
   const other = await api.post('/families', { familyName: 'Other Family', houseNumber: '77' });
   const father = await addMember({ name: 'बुवा', isAlive: false, dod: '2079-01-10' });
   const mother = await addMember({ name: 'आमा', gender: 'female', maritalStatus: 'married', spouse: father._id });
-  const son = await addMember({ name: 'छोरा', father: father._id, mother: mother._id });
+  await addMember({ name: 'छोरा', father: father._id, mother: mother._id });
   await addMember({ name: 'बाहिरको', family: other.data._id });
-  await api.put(`/members/${son._id}/verification`, { status: 'verified' });
 
-  // pending / verified
-  const pending = await api.get('/reports/members?format=json&verification=pending');
-  assert.equal(pending.data.total, 3);
-  const verified = await api.get('/reports/members?format=json&verification=verified');
-  assert.deepEqual(names(verified.data.data.map((r) => ({ name: r.Name }))), ['छोरा']);
-  assert.equal(verified.data.data[0].Verification, 'verified');
-  assert.equal(verified.data.data[0]['Date of Birth (BS)'], '2030-01-15');
+  // member reports carry only real database fields, with no verification column
+  const all = await api.get('/reports/members?format=json');
+  assert.equal(all.data.total, 4);
+  assert.equal(all.data.data.every((row) => !('Verification' in row)), true);
+  assert.equal(all.data.data[0]['Date of Birth (BS)'], '2030-01-15');
   assert.equal((await api.get('/reports/members?format=json&status=deceased')).data.total, 1);
+  assert.equal((await api.get('/reports/members?format=json&verification=verified')).data.total, 4, 'a stale verification filter is ignored');
 
   // a family with a Nepali name downloads, under its own name
   const familyReport = await sheetRows(`/reports/family?format=excel&familyId=${familyId}`);
-  assert.deepEqual(familyReport.workbook.SheetNames, ['Family Info', 'Statistics', 'Generations', 'Members']);
+  assert.deepEqual(familyReport.workbook.SheetNames, ['Family Info', 'Members']);
   assert.equal(familyReport.rows.length, 3);
+  assert.equal(familyReport.rows.every((row) => !('Verification' in row)), true);
   const disposition = familyReport.res.headers.get('content-disposition');
   assert.match(disposition, /filename\*=UTF-8''/);
   assert.equal(decodeURIComponent(disposition.split("filename*=UTF-8''")[1]), 'कटुवाल परिवार-report.xlsx');
@@ -467,6 +494,47 @@ test('reports: verification filter, Nepali family names, one family, and Export 
   for (const path of ['/reports/donation?format=csv', '/reports/donation?format=excel', '/reports/genealogy?format=csv', '/reports/all-families?format=excel', '/reports/qr?format=excel', '/reports/demographic?format=excel', '/reports/generation?format=csv']) {
     assert.equal((await api.raw(path)).status, 200, path);
   }
+});
+
+test('report photos are included only when requested, and verification is never exported', async () => {
+  await addMember({ name: 'फोटो भएको', photo: tinyImage() });
+
+  const plain = await api.get('/reports/members?format=json');
+  assert.equal('Photo' in plain.data.data[0], false);
+  assert.equal('Verification' in plain.data.data[0], false);
+
+  const withPhoto = await api.get('/reports/members?format=json&includePhoto=true');
+  assert.match(withPhoto.data.data[0].Photo, /\/family-members\//);
+
+  const exported = await sheetRows('/reports/export/members');
+  assert.equal('Photo' in exported.rows[0], false);
+  assert.equal('Verification' in exported.rows[0], false);
+});
+
+test('the all-families export repeats family details on each member row', async () => {
+  await addMember({ name: 'एक' });
+  await addMember({ name: 'दुई' });
+
+  const report = await sheetRows('/reports/all-families?format=excel');
+  assert.equal(report.rows.length, 2);
+  assert.deepEqual(report.rows.map((row) => row['Family Name']), ['कटुवाल परिवार', 'कटुवाल परिवार']);
+  assert.ok(report.rows.every((row) => row['Family Number'] === '1'));
+  assert.ok(report.rows.every((row) => !('Verification' in row)));
+});
+
+test('donation reports accept the date range used by the report filters', async () => {
+  await Donation.create({
+    donorName: 'Old Donor', donorPhone: '9800000001', donorEmail: 'old@example.com', donorType: 'external', amount: 10, paymentMethod: 'cash', paymentStatus: 'paid',
+    receiptNumber: 'R-OLD', donationDate: new Date('2020-01-01'),
+  });
+  await Donation.create({
+    donorName: 'New Donor', donorPhone: '9800000002', donorEmail: 'new@example.com', donorType: 'external', amount: 20, paymentMethod: 'cash', paymentStatus: 'paid',
+    receiptNumber: 'R-NEW', donationDate: new Date('2025-01-01'),
+  });
+
+  const report = await api.get('/reports/donation?format=json&dateRange=2024-01-01,2026-01-01');
+  assert.equal(report.data.summary.totalDonations, 1);
+  assert.equal(report.data.data[0].Donor, 'New Donor');
 });
 
 // ---- Smaller things --------------------------------------------------------
@@ -499,6 +567,8 @@ test('dashboard and donation report show real donation and document data', async
   const member = await addMember({ name: 'दानदाता' });
   await Donation.create({
     donorName: 'External Donor',
+    donorPhone: '9800000003',
+    donorEmail: 'external@example.com',
     donorType: 'external',
     amount: 125,
     paymentMethod: 'cash',
@@ -507,6 +577,8 @@ test('dashboard and donation report show real donation and document data', async
   });
   await Donation.create({
     donorName: member.name,
+    donorPhone: '9800000004',
+    donorEmail: 'member@example.com',
     donorType: 'member',
     donorId: member._id,
     amount: 50,

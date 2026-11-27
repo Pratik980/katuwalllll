@@ -14,7 +14,12 @@ const backupSchema = new mongoose.Schema({
   },
   filePath: {
     type: String,
-    required: true,
+  },
+  fileId: {
+    type: mongoose.Schema.Types.ObjectId,
+  },
+  error: {
+    type: String,
   },
   fileSize: {
     type: Number,

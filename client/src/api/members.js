@@ -12,11 +12,6 @@ export const getMemberOptions = async () => {
   return data;
 };
 
-export const updateVerification = async (id, status) => {
-  const { data } = await axios.put(`/members/${id}/verification`, { status });
-  return data;
-};
-
 export const getMemberById = async (id) => {
   const { data } = await axios.get(`/members/${id}`);
   return data;
@@ -55,15 +50,6 @@ export const getMembersByFamily = async (familyId) => {
   const { data } = await axios.get(`/members/family/${familyId}`);
   return data;
 };
-
-export const exportMembers = async (params) => {
-  const { data } = await axios.get('/members/export', {
-    params,
-    responseType: 'blob',
-  });
-  return data;
-};
-
 
 export const exportAllMembers = async (params = {}) => {
   const response = await axios.get('/reports/export/members', {

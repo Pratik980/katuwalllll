@@ -1,9 +1,10 @@
 // src/context/SocketContext.jsx
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { useAuth } from './AuthContext';
+import { useLanguage } from './LanguageContext';
 
 const SocketContext = createContext();
 
@@ -20,7 +21,13 @@ export const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const queryClient = useQueryClient();
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
+  const tRef = useRef(t);
   const userId = user?.id || null;
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   useEffect(() => {
     const socketUrl = import.meta.env.VITE_SOCKET_URL;
@@ -37,20 +44,20 @@ export const SocketProvider = ({ children }) => {
     socketInstance.on('connect', () => {
       console.log('Socket connected');
       setIsConnected(true);
-      toast.success('Connected to real-time server');
+      toast.success(tRef.current('socket_connected'));
     });
 
     socketInstance.on('disconnect', (reason) => {
       console.log('Socket disconnected:', reason);
       setIsConnected(false);
       if (!['io client disconnect', 'io server disconnect'].includes(reason)) {
-        toast.error('Disconnected from real-time server');
+        toast.error(tRef.current('socket_disconnected'));
       }
     });
 
     socketInstance.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
-      toast.error('Failed to connect to real-time server');
+      toast.error(tRef.current('socket_connect_failed'));
     });
 
     const refreshNotifications = () => {
@@ -60,7 +67,7 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for notifications
     socketInstance.on('notification:new', (notification) => {
-      toast.success(notification.message || 'New notification');
+      toast.success(notification.message || tRef.current('socket_new_notification'));
       refreshNotifications();
     });
     ['notification:read', 'notification:all_read', 'notification:deleted', 'notification:cleared'].forEach((event) => {
@@ -82,7 +89,7 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for donation updates
     socketInstance.on('donation:created', (donation) => {
-      toast.success(`New donation received: ${donation.amount}`);
+      toast.success(tRef.current('socket_new_donation', { amount: donation.amount }));
     });
 
     setSocket(socketInstance);

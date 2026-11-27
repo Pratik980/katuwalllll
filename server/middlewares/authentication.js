@@ -116,8 +116,17 @@ export const requireFamilyAccess = async (req, res, next) => {
 
 export const requireMemberFamilyAccess = async (req, res, next) => {
   try {
-    const member = await Member.findById(req.params.id).select('family').lean();
+    const member = await Member.findById(req.params.id).select('family createdBy').lean();
     if (!member) return res.status(404).json({ message: 'Member not found.' });
+
+    if (req.user?.role === 'user') {
+      const addedByUser = String(member.createdBy || '') === String(req.user._id);
+      if (!addedByUser) {
+        return res.status(403).json({ message: 'You do not have access to this member.' });
+      }
+      req.authorizedMemberFamilyId = member.family ? String(member.family) : null;
+      return next();
+    }
 
     const familyIds = await authorizedFamilyIds(req.user);
     if (familyIds !== null && (!member.family || !familyIds.includes(String(member.family)))) {

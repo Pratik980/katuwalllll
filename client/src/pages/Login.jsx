@@ -23,17 +23,14 @@ const Login = () => {
       const user = await signIn(form);
       navigate(user.mustChangePassword ? '/change-password' : location.state?.from || '/', { replace: true });
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Sign in failed. Please check your credentials.');
+      setError(requestError.response?.data?.message || t('sign_in_failed_message'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <AuthLayout
-      title={t('welcome_back') || 'Welcome Back'}
-      subtitle={t('sign_in_description') || 'Access your lineage records and family directory.'}
-    >
+    <AuthLayout title={t('welcome_back')} subtitle={t('sign_in_description')}>
       {(error || initializationError) && (
         <div
           role="alert"
@@ -41,7 +38,7 @@ const Login = () => {
         >
           <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-semibold">{error ? 'Sign In Failed' : 'Connection Notice'}</p>
+            <p className="font-semibold">{error ? t('sign_in_failed') : t('connection_notice')}</p>
             <p className="mt-0.5 text-xs text-red-700">{error || initializationError}</p>
           </div>
         </div>
@@ -61,7 +58,7 @@ const Login = () => {
               type="email"
               autoComplete="email"
               required
-              placeholder="your.email@example.com"
+              placeholder={t('email_placeholder')}
               value={form.email}
               onChange={(event) => setForm({ ...form, email: event.target.value })}
               className="w-full rounded-xl border border-slate-300 pl-10 pr-4 py-2.5 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/10 shadow-2xs"
@@ -88,7 +85,7 @@ const Login = () => {
               defaultChecked
               className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-500"
             />
-            <span className="text-xs text-slate-600">Remember on this device</span>
+            <span className="text-xs text-slate-600">{t('remember_device')}</span>
           </label>
           <Link
             to="/forgot-password"
@@ -101,7 +98,7 @@ const Login = () => {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-800 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:from-emerald-800 hover:to-teal-900 hover:shadow-md transition active:scale-98 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+          className="mt-2 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900 active:scale-98 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? (
             <>

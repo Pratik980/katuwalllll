@@ -3,7 +3,7 @@ import Member from '../models/Member.js';
 
 export const createDonation = async (donationData) => {
   // Validate donor exists
-  const donor = await Member.findById(donationData.donor);
+  const donor = await Member.findById(donationData.donorId);
   if (!donor) {
     throw new Error('Donor not found');
   }
@@ -17,17 +17,17 @@ export const getDonationAnalytics = async (filter = {}) => {
   const matchStage = {};
   
   if (filter.startDate && filter.endDate) {
-    matchStage.date = {
+    matchStage.donationDate = {
       $gte: new Date(filter.startDate),
       $lte: new Date(filter.endDate),
     };
   }
 
-  if (filter.donor) {
-    matchStage.donor = filter.donor;
+  if (filter.donorId) {
+    matchStage.donorId = filter.donorId;
   }
 
-  const [overall, byPurpose, monthly, topDonors] = await Promise.all([
+  const [overall, byCategory, monthly, topDonors] = await Promise.all([
     // Overall stats
     Donation.aggregate([
       { $match: matchStage },
@@ -43,12 +43,12 @@ export const getDonationAnalytics = async (filter = {}) => {
       },
     ]),
 
-    // By purpose
+    // By category
     Donation.aggregate([
       { $match: matchStage },
       {
         $group: {
-          _id: '$purpose',
+          _id: '$category',
           total: { $sum: '$amount' },
           count: { $sum: 1 },
         },
@@ -62,8 +62,8 @@ export const getDonationAnalytics = async (filter = {}) => {
       {
         $group: {
           _id: {
-            year: { $year: '$date' },
-            month: { $month: '$date' },
+            year: { $year: '$donationDate' },
+            month: { $month: '$donationDate' },
           },
           total: { $sum: '$amount' },
           count: { $sum: 1 },
@@ -77,7 +77,7 @@ export const getDonationAnalytics = async (filter = {}) => {
       { $match: matchStage },
       {
         $group: {
-          _id: '$donor',
+          _id: '$donorId',
           totalAmount: { $sum: '$amount' },
           donationCount: { $sum: 1 },
           averageAmount: { $avg: '$amount' },
@@ -99,7 +99,7 @@ export const getDonationAnalytics = async (filter = {}) => {
 
   return {
     overall: overall[0] || { totalAmount: 0, averageAmount: 0, count: 0 },
-    byPurpose,
+    byCategory,
     monthly,
     topDonors,
   };

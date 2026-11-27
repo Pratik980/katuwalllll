@@ -28,10 +28,12 @@ const donationSchema = new mongoose.Schema({
   },
   donorPhone: {
     type: String,
+    required: [true, 'Donor phone is required'],
     trim: true,
   },
   donorEmail: {
     type: String,
+    required: [true, 'Donor email is required'],
     trim: true,
     lowercase: true,
   },

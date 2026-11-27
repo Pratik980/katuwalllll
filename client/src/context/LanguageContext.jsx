@@ -1,16 +1,17 @@
 // src/context/LanguageContext.jsx
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { translations } from '../translations';
+
+export const LANGUAGES = { EN: 'en', NE: 'ne' };
 
 const LanguageContext = createContext();
 
 export const LanguageProvider = ({ children }) => {
   const [language, setLanguage] = useState(() => {
     const saved = localStorage.getItem('language');
-    if (saved && ['en', 'ne'].includes(saved)) {
-      return saved;
-    }
-    return 'en';
+    const initial = saved && ['en', 'ne'].includes(saved) ? saved : 'en';
+    document.documentElement.lang = initial;
+    return initial;
   });
 
   useEffect(() => {
@@ -18,32 +19,33 @@ export const LanguageProvider = ({ children }) => {
     document.documentElement.lang = language;
   }, [language]);
 
-  const t = (key) => {
+  const t = useCallback((key, vars = {}) => {
     if (!key) return key;
-    
+
     const langData = translations[language];
     const fallbackData = translations.en;
-    
+    let value = key;
+
     if (langData && langData[key] !== undefined && langData[key] !== '') {
-      return langData[key];
+      value = langData[key];
+    } else if (fallbackData && fallbackData[key] !== undefined && fallbackData[key] !== '') {
+      value = fallbackData[key];
     }
-    
-    if (fallbackData && fallbackData[key] !== undefined && fallbackData[key] !== '') {
-      return fallbackData[key];
-    }
-    
-    return key;
-  };
+
+    return value.replace(/\{(\w+)\}/g, (match, name) => (
+      vars[name] !== undefined ? String(vars[name]) : match
+    ));
+  }, [language]);
 
   const changeLanguage = (lang) => {
-    if (['en', 'ne'].includes(lang)) {
-      setLanguage(lang);
-      localStorage.setItem('language', lang);
-    }
+    if (!Object.values(LANGUAGES).includes(lang)) return false;
+    setLanguage(lang);
+    localStorage.setItem('language', lang);
+    return true;
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage: changeLanguage, t }}>
+    <LanguageContext.Provider value={{ language, LANGUAGES, setLanguage: changeLanguage, t }}>
       {children}
     </LanguageContext.Provider>
   );

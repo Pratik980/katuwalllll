@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const RequireAuth = ({ children, roles }) => {
-  const { user, loading, initializationError } = useAuth();
+  const { user, loading } = useAuth();
+  const { t } = useLanguage();
   const location = useLocation();
   const [tookLong, setTookLong] = useState(false);
 
@@ -17,33 +19,29 @@ const RequireAuth = ({ children, roles }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg mb-4">
+      <div className="flex min-h-screen animate-fadeIn flex-col items-center justify-center bg-slate-50 p-6 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-800 text-2xl font-bold text-white shadow-sm">
           KB
         </div>
-        <div className="animate-spin rounded-full h-8 w-8 border-3 border-emerald-600 border-t-transparent mb-3" />
-        <h3 className="text-base font-bold text-slate-800">Connecting to Katuwal Bansha...</h3>
-        <p className="text-xs text-slate-500 max-w-sm mt-1">
-          Verifying your secure session.
-        </p>
+        <div className="mb-3 h-8 w-8 animate-spin rounded-full border-3 border-emerald-700 border-t-transparent" />
+        <h3 className="text-base font-bold text-slate-800">{t('connecting_to_account')}</h3>
+        <p className="mt-1 max-w-sm text-xs text-slate-500">{t('verifying_session')}</p>
 
         {tookLong && (
-          <div className="mt-4 p-3 bg-white rounded-xl border border-slate-200 shadow-xs max-w-sm text-xs space-y-2 animate-fadeIn">
-            <p className="text-slate-600">
-              The free server is currently waking up from idle mode. This usually takes 15–30 seconds.
-            </p>
+          <div className="mt-4 max-w-sm animate-fadeIn space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xs">
+            <p className="text-slate-600">{t('server_waking')}</p>
             <div className="flex justify-center gap-2 pt-1">
               <button
                 onClick={() => window.location.reload()}
-                className="px-3 py-1.5 bg-emerald-800 text-white rounded-lg font-medium hover:bg-emerald-700 transition"
+                className="rounded-lg bg-emerald-800 px-3 py-1.5 font-medium text-white transition hover:bg-emerald-700"
               >
-                Retry
+                {t('retry')}
               </button>
               <Link
                 to="/login"
-                className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition"
+                className="rounded-lg bg-slate-100 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-200"
               >
-                Go to Login
+                {t('go_to_login')}
               </Link>
             </div>
           </div>

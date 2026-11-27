@@ -15,7 +15,7 @@ import {
 
 const router = express.Router();
 
-const readReports = requireRole('admin', 'staff', 'user');
+const readReports = requireRole('admin', 'staff');
 const exportReports = requireRole('admin', 'staff');
 
 export const requireReportFamilyAccess = (param = 'familyId') => async (req, res, next) => {
@@ -46,7 +46,7 @@ router.get('/family', readReports, requireReportFamilyAccess('familyId'), genera
 router.get('/all-families', readReports, requireFamilyAccess, generateAllFamiliesReport);
 router.get('/members', readReports, requireFamilyAccess, generateMemberReport);
 router.get('/generation', readReports, requireFamilyAccess, generateGenerationReport);
-router.get('/donation', requireRole('admin', 'staff'), generateDonationReport);
+router.get('/donation', requireRole('admin'), generateDonationReport);
 router.get('/demographic', readReports, requireFamilyAccess, generateDemographicReport);
 router.get('/qr', readReports, requireFamilyAccess, generateQRReport);
 

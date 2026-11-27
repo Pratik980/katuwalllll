@@ -11,6 +11,7 @@
 import { Fragment, forwardRef, useCallback, useEffect, useMemo, useRef } from 'react';
 import { FaMinus, FaPlus } from 'react-icons/fa';
 import { layoutTree } from '../../utils/treeLayout';
+import { useLanguage } from '../../context/LanguageContext';
 
 const LOOKS = {
   cards: { bandHeight: 48, lineColor: '#22c55e', lineWidth: 2, arrows: false, labelGutter: 0 },
@@ -34,6 +35,7 @@ const centerOnRoot = (chart) => {
 };
 
 const MarriageLink = ({ width, look }) => {
+  const { t } = useLanguage();
   if (look === LOOKS.book) {
     return (
       <div className="flex-none" style={{ width }}>
@@ -44,15 +46,22 @@ const MarriageLink = ({ width, look }) => {
 
   return (
     <div className="relative flex-none" style={{ width }}>
-      <span className="absolute left-0 right-0 bottom-1/2 mb-1 text-center text-[8px] text-pink-500 whitespace-nowrap">
-        विवाह
+      <span
+        className="absolute left-0 right-0 bottom-1/2 mb-1 text-center text-[8px] whitespace-nowrap"
+        style={{ color: look.lineColor }}
+      >
+        {t('tree_marriage')}
       </span>
-      <div className="absolute left-0 right-0 top-1/2 h-0.5 -translate-y-1/2 bg-pink-400" />
+      <div
+        className="absolute left-0 right-0 top-1/2 h-0.5 -translate-y-1/2"
+        style={{ backgroundColor: look.lineColor }}
+      />
     </div>
   );
 };
 
 const ConnectorBand = ({ boxes, width, onToggle, look }) => {
+  const { t } = useLanguage();
   const parents = boxes.filter((box) => box.childCount > 0);
   if (parents.length === 0) return null;
 
@@ -101,7 +110,7 @@ const ConnectorBand = ({ boxes, width, onToggle, look }) => {
             style={{ left: box.stemX }}
           >
             <FaPlus className="text-[8px]" />
-            {box.childCount} सन्तान हेर्नुहोस्
+            {t('tree_view_children', { count: box.childCount })}
           </button>
         ) : (
           <button
@@ -109,7 +118,7 @@ const ConnectorBand = ({ boxes, width, onToggle, look }) => {
             type="button"
             data-tree-control
             onClick={() => onToggle?.(box.node._id)}
-            title="सन्तान लुकाउनुहोस्"
+            title={t('tree_hide_children')}
             className={
               isBook
                 ? 'absolute top-0.5 -translate-x-1/2 bg-white text-gray-500 border border-gray-300 rounded-full w-3.5 h-3.5 flex items-center justify-center hover:text-black hover:border-gray-500 z-10'

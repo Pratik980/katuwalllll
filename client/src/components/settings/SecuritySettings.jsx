@@ -11,8 +11,10 @@ import {
 } from '../../api/security';
 import toast from 'react-hot-toast';
 import * as Icons from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const SecuritySettings = ({ data, onDataChange }) => {
+  const { t, language } = useLanguage();
   const [settings, setSettings] = useState({
     sessionTimeout: 60,
     passwordPolicy: {
@@ -31,7 +33,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
   const updateSettingsMutation = useMutation({
     mutationFn: updateSecuritySettings,
     onSuccess: () => {
-      toast.success('Security settings updated');
+      toast.success(t('set_security_updated'));
       onDataChange();
     },
   });
@@ -39,7 +41,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
   const forceLogoutMutation = useMutation({
     mutationFn: forceLogoutAll,
     onSuccess: () => {
-      toast.success('All devices logged out successfully');
+      toast.success(t('set_logout_all_success'));
       refetchActiveDevices();
     },
   });
@@ -101,7 +103,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
   };
 
   const handleForceLogout = () => {
-    if (confirm('Are you sure you want to log out all devices?')) {
+    if (confirm(t('set_confirm_logout_all'))) {
       forceLogoutMutation.mutate();
     }
   };
@@ -114,7 +116,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Session Timeout (minutes)
+          {t('set_session_timeout')}
         </label>
         <input
           type="number"
@@ -125,12 +127,12 @@ const SecuritySettings = ({ data, onDataChange }) => {
           max={480}
           className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        <p className="text-sm text-gray-600 mt-1">Auto logout after inactivity (0 = never)</p>
+        <p className="text-sm text-gray-600 mt-1">{t('set_session_timeout_hint')}</p>
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Password Policy
+          {t('set_password_policy')}
         </label>
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
@@ -141,7 +143,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
               onChange={handlePasswordPolicyChange}
               className="rounded border-gray-300 text-primary focus:ring-primary"
             />
-            <label className="text-sm text-gray-700">Require uppercase letters</label>
+            <label className="text-sm text-gray-700">{t('set_require_uppercase')}</label>
           </div>
           <div className="flex items-center space-x-2">
             <input
@@ -151,7 +153,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
               onChange={handlePasswordPolicyChange}
               className="rounded border-gray-300 text-primary focus:ring-primary"
             />
-            <label className="text-sm text-gray-700">Require lowercase letters</label>
+            <label className="text-sm text-gray-700">{t('set_require_lowercase')}</label>
           </div>
           <div className="flex items-center space-x-2">
             <input
@@ -161,7 +163,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
               onChange={handlePasswordPolicyChange}
               className="rounded border-gray-300 text-primary focus:ring-primary"
             />
-            <label className="text-sm text-gray-700">Require numbers</label>
+            <label className="text-sm text-gray-700">{t('set_require_numbers')}</label>
           </div>
           <div className="flex items-center space-x-2">
             <input
@@ -171,10 +173,10 @@ const SecuritySettings = ({ data, onDataChange }) => {
               onChange={handlePasswordPolicyChange}
               className="rounded border-gray-300 text-primary focus:ring-primary"
             />
-            <label className="text-sm text-gray-700">Require special characters</label>
+            <label className="text-sm text-gray-700">{t('set_require_special')}</label>
           </div>
           <div>
-            <label className="text-sm text-gray-700 block mb-1">Minimum Length</label>
+            <label className="text-sm text-gray-700 block mb-1">{t('set_min_length')}</label>
             <input
               type="number"
               name="minLength"
@@ -199,8 +201,8 @@ const SecuritySettings = ({ data, onDataChange }) => {
 
       <div className="flex items-center justify-between py-2 border-t border-gray-200">
         <div>
-          <h4 className="font-medium text-gray-900">Two-Factor Authentication</h4>
-          <p className="text-sm text-gray-600">Enforce 2FA for all users</p>
+          <h4 className="font-medium text-gray-900">{t('set_two_factor')}</h4>
+          <p className="text-sm text-gray-600">{t('set_two_factor_hint')}</p>
         </div>
         <Toggle
           enabled={settings.twoFactorEnabled}
@@ -212,7 +214,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
       </div>
 
       <div className="border-t border-gray-200 pt-6">
-        <h4 className="font-medium text-gray-900 mb-4">Active Devices</h4>
+        <h4 className="font-medium text-gray-900 mb-4">{t('set_active_devices')}</h4>
         {activeDevices.length > 0 ? (
           <div className="space-y-2">
             {activeDevices.map((device, index) => (
@@ -222,20 +224,20 @@ const SecuritySettings = ({ data, onDataChange }) => {
                   <div>
                     <p className="text-sm font-medium">{device.name}</p>
                     <p className="text-xs text-gray-500">
-                      {device.browser} • {device.os} • Last active: {new Date(device.lastActive).toLocaleString()}
+                      {t('set_on_platform', { browser: device.browser, os: device.os })} • {t('set_last_active', { date: new Date(device.lastActive).toLocaleString(language === 'ne' ? 'ne-NP' : 'en-US') })}
                     </p>
                   </div>
                 </div>
                 <span className={`text-xs px-2 py-1 rounded-full ${
                   device.current ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
                 }`}>
-                  {device.current ? 'Current' : 'Active'}
+                  {device.current ? t('set_current_device') : t('set_active_device')}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-gray-500 text-sm">No active devices found</p>
+          <p className="text-gray-500 text-sm">{t('set_no_active_devices')}</p>
         )}
         
         <div className="mt-4">
@@ -245,7 +247,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
             onClick={handleForceLogout}
             disabled={forceLogoutMutation.isPending}
           >
-            {forceLogoutMutation.isPending ? 'Logging out...' : 'Force Logout All Devices'}
+            {forceLogoutMutation.isPending ? t('set_logging_out') : t('set_logout_all_devices')}
           </Button>
         </div>
       </div>
@@ -253,8 +255,8 @@ const SecuritySettings = ({ data, onDataChange }) => {
       <div className="border-t border-gray-200 pt-6">
         <div className="flex items-center justify-between">
           <div>
-            <h4 className="font-medium text-gray-900">Login History</h4>
-            <p className="text-sm text-gray-600">View recent login activities</p>
+            <h4 className="font-medium text-gray-900">{t('set_login_history')}</h4>
+            <p className="text-sm text-gray-600">{t('set_login_history_hint')}</p>
           </div>
           <Button
             type="button"
@@ -262,7 +264,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
             onClick={loadLoginHistory}
           >
             <Icons.History className="w-4 h-4 mr-2" />
-            View History
+            {t('set_view_history')}
           </Button>
         </div>
         {historyData?.data?.length > 0 && (
@@ -270,11 +272,11 @@ const SecuritySettings = ({ data, onDataChange }) => {
             {historyData.data.map((entry) => (
               <div key={entry.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2">
                 <div>
-                  <p className="text-sm font-medium">{entry.browser} on {entry.os}</p>
-                  <p className="text-xs text-gray-500">{entry.ip || 'Unknown IP'} · {new Date(entry.createdAt).toLocaleString()}</p>
+                  <p className="text-sm font-medium">{t('set_on_platform', { browser: entry.browser, os: entry.os })}</p>
+                  <p className="text-xs text-gray-500">{entry.ip || t('set_unknown_ip')} · {new Date(entry.createdAt).toLocaleString(language === 'ne' ? 'ne-NP' : 'en-US')}</p>
                 </div>
                 <span className={`text-xs px-2 py-1 rounded-full ${entry.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
-                  {entry.success ? 'Success' : 'Failed'}
+                  {entry.success ? t('set_success_status') : t('set_failed_status')}
                 </span>
               </div>
             ))}
@@ -284,7 +286,7 @@ const SecuritySettings = ({ data, onDataChange }) => {
 
       <div className="flex justify-end">
         <Button type="submit" disabled={updateSettingsMutation.isPending}>
-          {updateSettingsMutation.isPending ? 'Saving...' : 'Save Security Settings'}
+          {updateSettingsMutation.isPending ? t('saving') : t('set_save_security')}
         </Button>
       </div>
     </form>

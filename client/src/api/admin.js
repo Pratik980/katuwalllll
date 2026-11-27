@@ -6,6 +6,11 @@ export const getAdminUsers = async () => {
   return data.data || [];
 };
 
+export const getAdminStaff = async (params = {}) => {
+  const { data } = await axios.get('/admin/staff', { params });
+  return data;
+};
+
 export const createStaffUser = async (payload) => {
   const { data } = await axios.post('/admin/staff', payload);
   return data;
@@ -13,6 +18,11 @@ export const createStaffUser = async (payload) => {
 
 export const updateManagedUser = async (id, payload) => {
   const { data } = await axios.patch(`/admin/users/${id}`, payload);
+  return data;
+};
+
+export const updateManagedUserPhoto = async (id, payload) => {
+  const { data } = await axios.patch(`/admin/users/${id}/photo`, payload);
   return data;
 };
 

@@ -4,8 +4,10 @@ import Toggle from '../Toggle';
 import { useMutation } from '@tanstack/react-query';
 import { updateNotificationSettings } from '../../api/settings';
 import toast from 'react-hot-toast';
+import { useLanguage } from '../../context/LanguageContext';
 
 const NotificationSettings = ({ data, onDataChange }) => {
+  const { t } = useLanguage();
   const [settings, setSettings] = useState({
     emailNotifications: true,
     browserNotifications: true,
@@ -20,7 +22,7 @@ const NotificationSettings = ({ data, onDataChange }) => {
   const updateMutation = useMutation({
     mutationFn: updateNotificationSettings,
     onSuccess: () => {
-      toast.success('Notification settings updated');
+      toast.success(t('set_notification_updated'));
       onDataChange();
     },
   });
@@ -38,14 +40,14 @@ const NotificationSettings = ({ data, onDataChange }) => {
   };
 
   const notificationItems = [
-    { key: 'emailNotifications', label: 'Email Notifications', description: 'Receive updates via email' },
-    { key: 'browserNotifications', label: 'Browser Notifications', description: 'Receive notifications in your browser' },
-    { key: 'donationNotifications', label: 'Donation Notifications', description: 'Get notified about new donations' },
-    { key: 'newMemberNotifications', label: 'New Member Notifications', description: 'Get notified when new members join' },
-    { key: 'birthdayNotifications', label: 'Birthday Notifications', description: 'Get notified about member birthdays' },
-    { key: 'familyUpdateNotifications', label: 'Family Update Notifications', description: 'Get notified about family updates' },
-    { key: 'chatNotifications', label: 'Chat Notifications', description: 'Get notified about new chat messages' },
-    { key: 'soundNotifications', label: 'Sound Notifications', description: 'Play sounds for notifications' },
+    { key: 'emailNotifications', labelKey: 'notif_email_label', descriptionKey: 'notif_email_desc' },
+    { key: 'browserNotifications', labelKey: 'notif_browser_label', descriptionKey: 'notif_browser_desc' },
+    { key: 'donationNotifications', labelKey: 'notif_donation_label', descriptionKey: 'notif_donation_desc' },
+    { key: 'newMemberNotifications', labelKey: 'notif_member_label', descriptionKey: 'notif_member_desc' },
+    { key: 'birthdayNotifications', labelKey: 'notif_birthday_label', descriptionKey: 'notif_birthday_desc' },
+    { key: 'familyUpdateNotifications', labelKey: 'notif_family_label', descriptionKey: 'notif_family_desc' },
+    { key: 'chatNotifications', labelKey: 'notif_chat_label', descriptionKey: 'notif_chat_desc' },
+    { key: 'soundNotifications', labelKey: 'notif_sound_label', descriptionKey: 'notif_sound_desc' },
   ];
 
   return (
@@ -53,8 +55,8 @@ const NotificationSettings = ({ data, onDataChange }) => {
       {notificationItems.map((item) => (
         <div key={item.key} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
           <div>
-            <h4 className="font-medium text-gray-900">{item.label}</h4>
-            <p className="text-sm text-gray-600">{item.description}</p>
+            <h4 className="font-medium text-gray-900">{t(item.labelKey)}</h4>
+            <p className="text-sm text-gray-600">{t(item.descriptionKey)}</p>
           </div>
           <Toggle
             enabled={settings[item.key]}

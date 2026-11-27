@@ -68,6 +68,22 @@ const applyFamilyScope = (query, ids) => {
   return { ...query, $and: [...(query.$and || []), scopedFamilyFilter(ids)] };
 };
 
+const ownMemberFilter = (req) => {
+  if (req.user?.role !== 'user') return null;
+  return { createdBy: req.user._id };
+};
+
+const applyOwnMemberScope = (query, req) => {
+  const own = ownMemberFilter(req);
+  if (!own) return query;
+  return { ...query, $and: [...(query.$and || []), own] };
+};
+
+const scopedMemberQuery = async (req, query = {}) => {
+  if (req.user?.role === 'user') return applyOwnMemberScope(query, req);
+  return applyFamilyScope(query, await authorizedFamilyIds(req.user));
+};
+
 
 const getNextMemberNumber = async () => {
   const counter = await Counter.findByIdAndUpdate(
@@ -129,7 +145,7 @@ const isFalse = (value) => value === false || value === 'false';
 // Fixed-list fields: an empty choice from the form means "leave as it is"
 const CHOICE_FIELDS = [
   'gender', 'bloodGroup', 'maritalStatus', 'lineageRole', 'parentRelationshipType',
-  'generationMode', 'personStatus', 'status', 'verificationStatus',
+  'generationMode', 'personStatus', 'status',
 ];
 
 
@@ -198,13 +214,18 @@ const getBanshaNumber = async (familyId, requestedBansha = null) => {
 
 export const getMembers = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
+    const pageNumber = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limitNumber = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
+    const skip = (pageNumber - 1) * limitNumber;
+    const sortOptions = {
+      newest: { createdAt: -1 },
+      oldest: { createdAt: 1 },
+      name: { name: 1 },
+      memberNumber: { memberNumber: 1 },
+    };
+    const sort = sortOptions[req.query.sort] || sortOptions.newest;
 
-    const query = applyFamilyScope(
-      await buildMemberQuery(req.query),
-      await authorizedFamilyIds(req.user)
-    );
+    const query = await scopedMemberQuery(req, await buildMemberQuery(req.query));
 
     const [members, total] = await Promise.all([
       Member.find(query)
@@ -214,19 +235,19 @@ export const getMembers = async (req, res) => {
           populate: { path: 'house', select: 'houseNumber' },
         })
         .populate('father mother spouse', 'name photo memberNumber')
-        .sort({ createdAt: -1 })
+        .sort(sort)
         .skip(skip)
-        .limit(parseInt(limit)),
+        .limit(limitNumber),
       Member.countDocuments(query),
     ]);
 
     res.json({
       data: members,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNumber,
+        limit: limitNumber,
         total,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / limitNumber),
       },
     });
   } catch (error) {
@@ -240,8 +261,8 @@ export const getMembers = async (req, res) => {
 // form, however many members there are.
 export const getMemberOptions = async (req, res) => {
   try {
-    const ids = await authorizedFamilyIds(req.user);
-    const members = await Member.find(ids === null ? {} : scopedFamilyFilter(ids))
+    const query = await scopedMemberQuery(req);
+    const members = await Member.find(query)
       .select('name surname memberNumber gender family')
       .sort({ name: 1 })
       .lean();
@@ -428,7 +449,6 @@ export const createMember = async (req, res) => {
       generationMode,
       family: familyId,
       status: isFalse(cleanedBody.isAlive) ? 'deceased' : 'active',
-      verificationStatus: 'pending',
       personStatus,
       createdBy: req.user?._id || null,
       updatedBy: req.user?._id || null,
@@ -816,35 +836,6 @@ export const updateMember = async (req, res) => {
 };
 
 
-// Verified / pending / rejected, set from the Members list
-export const updateVerification = async (req, res) => {
-  try {
-    const { status } = req.body || {};
-    if (!['verified', 'pending', 'rejected'].includes(status)) {
-      return res.status(400).json({ message: 'Verification status must be verified, pending or rejected' });
-    }
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(404).json({ message: 'Member not found' });
-    }
-
-    const member = await Member.findByIdAndUpdate(
-      req.params.id,
-      { verificationStatus: status, updatedBy: req.user?._id || null },
-      { returnDocument: 'after' }
-    ).populate('family', 'familyName familyNumber vanshaGenerationNumber');
-
-    if (!member) {
-      return res.status(404).json({ message: 'Member not found' });
-    }
-
-    io.emit('member:updated', member);
-    res.json(member);
-  } catch (error) {
-    console.error('updateVerification Error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
 
 export const deleteMember = async (req, res) => {
   try {
@@ -917,11 +908,8 @@ export const searchMembers = async (req, res) => {
       return res.status(400).json({ message: 'Search query is required' });
     }
 
-    const ids = await authorizedFamilyIds(req.user);
-    const members = await Member.find({
-      $text: { $search: query },
-      ...(ids === null ? {} : scopedFamilyFilter(ids)),
-    })
+    const match = await scopedMemberQuery(req, { $text: { $search: query } });
+    const members = await Member.find(match)
       .populate('family', 'familyName familyNumber')
       .sort({ score: { $meta: 'textScore' } })
       .limit(20);
@@ -952,7 +940,7 @@ export const getMembersByFamily = async (req, res) => {
       return res.status(404).json({ message: 'Family not found' });
     }
 
-    const members = await Member.find({ family: familyId })
+    const members = await Member.find(applyOwnMemberScope({ family: familyId }, req))
       .select('name surname photo gender dob dobNepali isAlive relationship generation generationMode memberNumber vanshaGenerationNumber lineageRole')
       .sort({ generation: 1, name: 1 });
 
@@ -977,8 +965,7 @@ export const getMembersByFamily = async (req, res) => {
 
 export const getMemberStats = async (req, res) => {
   try {
-    const ids = await authorizedFamilyIds(req.user);
-    const match = ids === null ? {} : scopedFamilyFilter(ids);
+    const match = await scopedMemberQuery(req);
     const stage = Object.keys(match).length ? [{ $match: match }] : [];
     const [total, byGender, byStatus, byGeneration, byVansha] = await Promise.all([
       Member.countDocuments(match),
@@ -1051,7 +1038,6 @@ export default {
   getMemberById,
   createMember,
   updateMember,
-  updateVerification,
   deleteMember,
   searchMembers,
   getMembersByFamily,
